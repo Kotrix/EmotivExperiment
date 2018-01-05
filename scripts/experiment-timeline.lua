@@ -201,7 +201,7 @@ function process(box)
             box:send_stimulation(1, OVTK_StimulationId_RestStart, box:get_current_time(), 0)
             wait_for_sec(box, inter_block_rest)
             box:send_stimulation(1, OVTK_StimulationId_RestStop, box:get_current_time(), 0)
-            box:send_stimulation(1, OVTK_StimulationId_Label_19, box:get_current_time(), 0)
+            box:send_stimulation(1, OVTK_StimulationId_Label_20, box:get_current_time(), 0)
         end
         
         wait_for_sec(box, rest_duration)

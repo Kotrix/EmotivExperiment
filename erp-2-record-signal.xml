@@ -683,6 +683,20 @@
 					<Value>OVTK_StimulationId_Label_1F</Value>
 					<Modifiability>false</Modifiability>
 				</Setting>
+				<Setting>
+					<TypeIdentifier>(0x330306dd, 0x74a95f98)</TypeIdentifier>
+					<Name>Cue Image 32</Name>
+					<DefaultValue>${Path_Data}/plugins/simple-visualisation/p300-magic-card/32.png</DefaultValue>
+					<Value>${Player_ScenarioDirectory}/assets/end_rest.png</Value>
+					<Modifiability>false</Modifiability>
+				</Setting>
+				<Setting>
+					<TypeIdentifier>(0x2c132d6e, 0x44ab0d97)</TypeIdentifier>
+					<Name>Stimulation 32</Name>
+					<DefaultValue>OVTK_StimulationId_Label_20</DefaultValue>
+					<Value>OVTK_StimulationId_Label_20</Value>
+					<Modifiability>false</Modifiability>
+				</Setting>
 			</Settings>
 			<Attributes>
 				<Attribute>
