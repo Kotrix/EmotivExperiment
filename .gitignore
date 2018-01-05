@@ -1,3 +1,11 @@
+assets/0*.png
+signals/ov/*
+signals/csv/*
+signals/csv_old
+signals/figures/*
+signals/.idea
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
