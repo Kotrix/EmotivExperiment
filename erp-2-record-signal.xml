@@ -15,6 +15,12 @@
 			<DefaultValue>FET</DefaultValue>
 			<Value>FGT</Value>
 		</Setting>
+		<Setting>
+			<TypeIdentifier>(0x007deef9, 0x2f3e95c6)</TypeIdentifier>
+			<Name>ExperimentalUnits</Name>
+			<DefaultValue>8</DefaultValue>
+			<Value>8</Value>
+		</Setting>
 	</Settings>
 	<Inputs></Inputs>
 	<Outputs></Outputs>
@@ -887,6 +893,13 @@
 					<Name>PrimaryButton</Name>
 					<DefaultValue>$var{PrimaryButton}</DefaultValue>
 					<Value>$var{PrimaryButton}</Value>
+					<Modifiability>false</Modifiability>
+				</Setting>
+				<Setting>
+					<TypeIdentifier>(0x007deef9, 0x2f3e95c6)</TypeIdentifier>
+					<Name>ExperimentalUnits</Name>
+					<DefaultValue>$var{ExperimentalUnits}</DefaultValue>
+					<Value>$var{ExperimentalUnits}</Value>
 					<Modifiability>false</Modifiability>
 				</Setting>
 			</Settings>

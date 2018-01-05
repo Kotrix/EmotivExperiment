@@ -5,7 +5,6 @@ signals/csv_old
 signals/figures/*
 signals/.idea
 
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

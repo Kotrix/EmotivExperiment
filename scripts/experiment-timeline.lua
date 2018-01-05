@@ -86,7 +86,7 @@ function initialize(box)
     
     inter_block_rest = 15
     block_size = 64
-    experiment_units = 8
+    experiment_units = box:get_setting(4)
     
     emotional_faces = {
         OVTK_StimulationId_Label_01,
