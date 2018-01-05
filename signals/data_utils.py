@@ -36,6 +36,8 @@ def read_openvibe_csv(filename, electrodes):
         
         # Read timestamps, signal values and stimuli
         experiment_started = False
+        correct_answers = 0
+        answer_time = 0
         for row in reader:
 
             # Start reading from the ExperimentStart event
@@ -54,10 +56,13 @@ def read_openvibe_csv(filename, electrodes):
                     order.append((stimuli_id, event_timestamp))
                 elif stimuli_id == 770:
                     responses.append((True, event_timestamp))
+                    correct_answers += 1
+                    answer_time += event_timestamp - order[-1][1]
                 elif stimuli_id == 769:
                     responses.append((False, event_timestamp))
+                    answer_time += event_timestamp - order[-1][1]
 
-    print(filename)
+    print(filename, 'score:', 100 * correct_answers / len(responses), 'avg. time:', 1000 * answer_time / len(responses))
     
     return {'timestamps': timestamps, 'signals': signals, 'order': order, 'responses': responses}
 
