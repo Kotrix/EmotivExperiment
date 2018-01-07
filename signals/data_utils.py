@@ -1,7 +1,20 @@
 import matplotlib.pyplot as plt
 from collections import OrderedDict
 import glob
+import csv
+import os
 import numpy as np
+
+fs = 128 # EPOC sampling freq, Hz
+def time2sample(time):
+    """
+    :param time: in seconds
+    :return: integer number of the nearest sample
+    """
+    return int(round(time * fs))
+
+def basename(filename):
+    return os.path.basename(filename)[:-4]
 
 face_min_id = 33025
 face_max_id = 33048
@@ -10,7 +23,15 @@ experiment_start_id = '32769'
 def read_openvibe_csv(filename, electrodes):
     """
     return dictionary with list of timestamps, signals dictionary, stimuli dictionary for every electrode
-    """ 
+    """
+
+    # Prepare directory for results
+    new_dir = 'figures\\' + basename(filename) + '\\'
+    if not os.path.isdir(new_dir):
+        os.makedirs(new_dir)
+        os.makedirs(new_dir + 'chunks')
+        os.makedirs(new_dir + 'erp')
+
     # Init containers
     timestamps = list()
     order = list()
@@ -19,8 +40,7 @@ def read_openvibe_csv(filename, electrodes):
     for e in electrodes:
         signals[e] = list()
     event_col = 16  # default event column without gyroscope
-    
-    import csv
+
     with open(filename, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',', quotechar='|')
         
@@ -69,7 +89,7 @@ def read_openvibe_csv(filename, electrodes):
 
 def read_openvibe_csv_database(database_regex, electrodes):
     """
-    return dictionary [filename matching glob_regex] -> [timestamps, dictionary of signals for electrodes]
+    return dictionary [filename matching database_regex] -> [EEG data in dictionary]
     """
     files = glob.glob(database_regex)
     

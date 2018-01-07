@@ -1,56 +1,55 @@
+from data_utils import *
 ############# CONFIG ###########################
-database_regex = 'csv/record-FGT*.csv'
-electrodes = ['AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4']
-#electrodes = ['F7','P7','P8']
+database_regex = 'csv/record-FET*.csv'
 
 triggering_electrode = 'F7'
-fs = 128 # EPOC sampling freq, Hz
+electrodes_to_analyze = ['P7', 'P8']
+
+common_avg_ref = True
+ref_electrodes = ['AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'] if common_avg_ref else []
+
+all_electrodes = np.unique([triggering_electrode] + electrodes_to_analyze + ref_electrodes)
 
 # Filtering options
 low_cutoff = 0.2
 high_cutoff = 24 # desired cutoff frequency of the filter, Hz (0 to disable filtering)
 
 # Define pre and post stimuli period of chunk (in seconds)
-pre_stimuli = 0.1
-post_stimuli = 0.4
+pre_stimuli = time2sample(0.1)
+post_stimuli = time2sample(0.4)
 
 # Define threshold for trigger signal
-trigger_threshold = -600 # trigger peak has to be below this value
-max_trigger_peak_width = 3 # in seconds
+trigger_threshold = -580 # trigger peak has to be below this value
+max_trigger_peak_width = time2sample(3) # in seconds
 slope_width = 4 # in number of samples, controls shift of the stimuli start
 
 # Valid signal value limits
-chunk_lower_limit = -50
-chunk_upper_limit = 50
+chunk_lower_limit = -100
+chunk_upper_limit = 100
 chunk_max_peak_to_peak = 70
-
-# Please save this config as txt in the database folder after adjusting
-
-# Transform periods in seconds to number of samples
-pre_stimuli = int(pre_stimuli * fs)
-post_stimuli = int(post_stimuli * fs)
-max_trigger_peak_width = int(max_trigger_peak_width * fs)
 
 
 ######### READ SIGNALS FROM DISK ############################
 
-from data_utils import *
-database = read_openvibe_csv_database(database_regex, electrodes)
+database = read_openvibe_csv_database(database_regex, all_electrodes)
 
-######## COMMON AVERAGE REFERENCE ###########################
-#Modify database by filtering signals
-for filename, record in database.items():
-    mean = np.zeros(len(record['signals'][triggering_electrode]))
-    for electrode, signal in record['signals'].items():
-        if electrode != triggering_electrode:
-            mean += signal
-    mean /= len(electrodes) - 1
-    for electrode, signal in record['signals'].items():
-        if electrode != triggering_electrode:
-            database[filename]['signals'][electrode] -= mean
+if common_avg_ref:
+    ######## COMMON AVERAGE REFERENCE ###########################
+    for filename, record in database.items():
+        # Find average signal over all ref_electrodes
+        mean = np.zeros(len(record['signals'][triggering_electrode]))
+        for electrode, signal in record['signals'].items():
+            if electrode in ref_electrodes:
+                mean += signal
+        mean /= len(ref_electrodes)
+
+        # Change reference of all electrodes
+        for electrode, signal in record['signals'].items():
+            if electrode != triggering_electrode:
+                database[filename]['signals'][electrode] -= mean
 
 
-# plot_database(database, 1)
+#plot_database(database, 1)
 
 
 ########### SIGNALS FILTERING ###############
@@ -68,13 +67,10 @@ if high_cutoff > 0:
 #plot_database(database, 1)
 
 
-############ CUT THE END OF SIGNAL TO REMOVE FILTERING ARTIFACT ##################
+############ CUT THE END OF SIGNAL TO REMOVE FILTERING ARTIFACTS ##################
 # Times (in seconds) to cut signals in the beginning and end
-left_cut = 0
-right_cut = 3
-#convert to sample number
-left_cut = int(left_cut*fs)
-right_cut = max(1, int(right_cut*fs))
+left_cut = time2sample(0)
+right_cut = time2sample(3)
 
 for filename, record in database.items():
     database[filename]['timestamps'] = record['timestamps'][left_cut:-right_cut]
@@ -102,15 +98,6 @@ else:
 
 ######### EXTRACT CHUNKS OF SIGNAL AFTER STIMULI ##################
 
-# Init container for ERP chunks
-extracted_chunks_emo = OrderedDict()
-extracted_chunks_neutral = OrderedDict()
-for e in electrodes:
-    if e != triggering_electrode:
-        extracted_chunks_emo[e] = list()
-        extracted_chunks_neutral[e] = list()
-
-
 def is_face_emotional(face_id):
     neutral_labels = [2, 6, 9, 11, 15, 17, 19, 24]
     for i in neutral_labels:
@@ -122,35 +109,41 @@ def is_face_emotional(face_id):
 def forward_diff(signal, order):
     new_signal = np.zeros_like(signal)
     for i in range(len(signal) - order):
-        new_signal[i] = np.sum(np.diff(signal[i:i + order]))
+        new_signal[i] = np.sum(np.diff(signal[i:(i + order)]))
 
     return new_signal
 
 
 for filename, record in database.items():
 
+    # Init container for ERP chunks
+    extracted_chunks_emo = OrderedDict()
+    extracted_chunks_neutral = OrderedDict()
+    for e in electrodes_to_analyze:
+        extracted_chunks_emo[e] = list()
+        extracted_chunks_neutral[e] = list()
+
     # Compute forward difference of triggering electrode signal and find its minima
     raw_trigger_signal = np.array(record['signals'][triggering_electrode])
     trigger_signal = forward_diff(raw_trigger_signal, slope_width)
 
+    # #Compare raw triggering signal and its difference
     # plt.figure()
-    # plt.plot(range(len(trigger_signal)),
-    #          raw_trigger_signal, 'b-')
-    # plt.plot(range(len(trigger_signal)),
-    #          trigger_signal, 'g-', linewidth=1)
+    # plt.plot(range(len(trigger_signal)), raw_trigger_signal, 'b-')
+    # plt.plot(range(len(trigger_signal)), trigger_signal, 'g-', linewidth=1)
     # plt.xlabel('Time [s]')
     # plt.ylabel('uV')
     # plt.grid()
     # plt.show()
 
-
     # Find next stimuli start and save related chunk for every electrode
     i = 0
     trigger_iter = 0
-    ts = list()
-    os = list()
+    true_timestamps = list()
+    openvibe_timestamps = list()
     while i < len(trigger_signal):
         if trigger_signal[i] < trigger_threshold:
+
             try:
                 was_response_correct = record['responses'][trigger_iter][0]
             except:
@@ -163,7 +156,7 @@ for filename, record in database.items():
                 search_area_end = min(i + max_trigger_peak_width // 2, len(trigger_signal))
                 stimuli_index = int(search_area_start + np.argmin(trigger_signal[search_area_start:search_area_end]))
 
-                #Plot triggers
+                # #Plot single triggers
                 # margin = 10
                 # plt.figure()
                 # plt.plot(range(len(trigger_signal[stimuli_index-margin:stimuli_index+margin])), raw_trigger_signal[stimuli_index-margin:stimuli_index+margin], 'b-')
@@ -175,14 +168,14 @@ for filename, record in database.items():
                 # plt.show()
 
                 try:
-                    ts.append(record['timestamps'][stimuli_index])
-                    os.append(record['order'][trigger_iter][1])
+                    true_timestamps.append(record['timestamps'][stimuli_index])
+                    openvibe_timestamps.append(record['order'][trigger_iter][1])
                 except:
                     pass
 
                 # Save chunk
                 for electrode, signal in record['signals'].items():
-                    if electrode in extracted_chunks_emo:
+                    if electrode in electrodes_to_analyze:
                         if stimuli_index - pre_stimuli < 0 or stimuli_index + post_stimuli > len(signal):
                             continue
                         chunk = signal[stimuli_index - pre_stimuli:stimuli_index + post_stimuli]
@@ -190,7 +183,7 @@ for filename, record in database.items():
                         chunk_min = np.min(chunk)
                         chunk_peak_to_peak = chunk_max - chunk_min
 
-                        if trigger_iter < 0:
+                        if trigger_iter < 10:
                             #Plot triggers
                             plt.figure()
                             plt.title(electrode)
@@ -200,7 +193,7 @@ for filename, record in database.items():
                             plt.xlabel('Time [s]')
                             plt.ylabel('uV')
                             plt.grid()
-                            plt.savefig("figures\\one_chunk\\"+electrode+'_'+str(trigger_iter)+'.png')
+                            plt.savefig("figures\\" + basename(filename) + "\\chunks\\"+electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png')
                             plt.close('all')
 
                         if chunk_min > chunk_lower_limit and chunk_max < chunk_upper_limit and chunk_peak_to_peak < chunk_max_peak_to_peak:
@@ -218,51 +211,60 @@ for filename, record in database.items():
         else:
             i += 1
 
-    diff = np.subtract(ts[:len(os)], os)
+    # Calculate difference between true timestamps and openvibe timestamps
+    diff = np.subtract(true_timestamps[:len(openvibe_timestamps)], openvibe_timestamps)
     m = np.mean(diff)
     v = np.std(diff)
     print(filename, m, v)
 
 
-######### AVERAGE CHUNKS ##################
-invert_y_axis = False
+    ######### AVERAGE CHUNKS ##################
+    invert_y_axis = False
 
-# N170 area 140-185ms
-n170_begin = pre_stimuli + int(0.14 * fs)
-n170_end = pre_stimuli + int(0.185 * fs)
+    # N170 area 140-185ms
+    n170_begin = pre_stimuli + time2sample(0.14)
+    n170_end = pre_stimuli + time2sample(0.185)
 
-for electrode in extracted_chunks_emo:
+    for electrode in extracted_chunks_emo:
 
-    chunks_emo = extracted_chunks_emo[electrode]
-    chunks_neutral = extracted_chunks_neutral[electrode]
+        chunks_emo = extracted_chunks_emo[electrode]
+        chunks_neutral = extracted_chunks_neutral[electrode]
 
-    if len(chunks_emo) == 0 or len(chunks_neutral) == 0:
-        continue
+        if len(chunks_emo) == 0 or len(chunks_neutral) == 0:
+            continue
 
-    # Grand-average over all chunks
-    averaged_emo = np.mean(chunks_emo, axis=0)
-    averaged_neutral = np.mean(chunks_neutral, axis=0)
+        # Grand-average over all chunks
+        averaged_emo = np.mean(chunks_emo, axis=0)
+        averaged_neutral = np.mean(chunks_neutral, axis=0)
 
-    # change voltage scale as difference from baseline
-    averaged_emo -= np.mean(averaged_emo[:pre_stimuli+1])
-    averaged_neutral -= np.mean(averaged_neutral[:pre_stimuli+1])
+        # change voltage scale as difference from baseline
+        averaged_emo -= np.mean(averaged_emo[:pre_stimuli+1])
+        averaged_neutral -= np.mean(averaged_neutral[:pre_stimuli+1])
 
-    plt.figure()
-    plt.title(electrode + ' - ' + str(len(chunks_emo)) + '/' + str(len(chunks_neutral)) + ' chunks average')
-    plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo, color='r',
-             linestyle='dashed')
-    plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='g')
-    plt.axvline(0, color='k', linestyle='dashed')
-    plt.axhline(0, color='k', linestyle='dashed')
-    plt.xlabel('Time [ms]')
-    plt.ylabel('uV')
-    if invert_y_axis:
-        plt.gca().invert_yaxis()
-    plt.draw()
-    plt.savefig("figures\\n170\\Robert\\" + electrode + '_' + 'Robert_FET_correct_Common_' + str(int(high_cutoff)) + '.png')
-    plt.show()
+        plt.figure()
+        plt.title(electrode + ' - ' + str(len(chunks_emo)) + '/' + str(len(chunks_neutral)) + ' chunks average')
+        plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo, color='r',
+                 linestyle='dashed')
+        plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='g')
+        plt.axvline(0, color='k', linestyle='dashed')
+        plt.axhline(0, color='k', linestyle='dashed')
+        plt.xlabel('Time [ms]')
+        plt.ylabel('uV')
+        if invert_y_axis:
+            plt.gca().invert_yaxis()
+        plt.draw()
+        figure_file = "figures\\" + basename(filename) + "\\erp\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(high_cutoff)) + 'Hz'
+        plt.savefig(figure_file + '.png')
+        #plt.show()
 
-    print(electrode)
-    print(len(chunks_emo), '\t', len(chunks_neutral))
-    print(averaged_emo[n170_begin:n170_end].min(), '\t', averaged_neutral[n170_begin:n170_end].min())
+        print(electrode)
+        print(len(chunks_emo), '\t', len(chunks_neutral))
+        print(averaged_emo[n170_begin:n170_end].min(), '\t', averaged_neutral[n170_begin:n170_end].min())
+
+        with open(figure_file + '.csv', 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile, delimiter=',', quotechar='|')
+            writer.writerow(['emo', 'neutral'])
+            writer.writerow([len(chunks_emo), len(chunks_neutral)])
+            writer.writerow([averaged_emo[n170_begin:n170_end].min(), averaged_neutral[n170_begin:n170_end].min()])
+
     print('\n')
