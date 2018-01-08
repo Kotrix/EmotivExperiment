@@ -1,6 +1,6 @@
 from data_utils import *
 ############# CONFIG ###########################
-database_regex = 'csv/record-F*.csv'
+database_regex = 'csv/*/record-F*.csv'
 
 triggering_electrode = 'F7'
 electrodes_to_analyze = ['P7', 'P8']
