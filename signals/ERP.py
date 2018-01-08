@@ -1,6 +1,6 @@
 from data_utils import *
 ############# CONFIG ###########################
-database_regex = 'csv/record-FET*.csv'
+database_regex = 'csv/record-F*.csv'
 
 triggering_electrode = 'F7'
 electrodes_to_analyze = ['P7', 'P8']
@@ -15,13 +15,12 @@ low_cutoff = 0.2
 high_cutoff = 24 # desired cutoff frequency of the filter, Hz (0 to disable filtering)
 
 # Define pre and post stimuli period of chunk (in seconds)
-pre_stimuli = time2sample(0.1)
-post_stimuli = time2sample(0.4)
+pre_stimuli = time2sample(0.2)
+post_stimuli = time2sample(1.0)
 
 # Define threshold for trigger signal
-trigger_threshold = -580 # trigger peak has to be below this value
 max_trigger_peak_width = time2sample(3) # in seconds
-slope_width = 4 # in number of samples, controls shift of the stimuli start
+slope_width = 9 # in number of samples, controls shift of the stimuli start
 
 # Valid signal value limits
 chunk_lower_limit = -100
@@ -59,11 +58,10 @@ if high_cutoff > 0:
     # Modify database by filtering signals
     for filename, record in database.items():
         for electrode, signal in record['signals'].items():
-            if electrode != triggering_electrode:
-                #filtered_signal = butter_lowpass_filter(signal, high_cutoff, fs, 6)
-                filtered_signal = fft_bandpass_filter(signal, low_cutoff, high_cutoff, fs)
+            #filtered_signal = butter_lowpass_filter(signal, high_cutoff, fs, 6)
+            filtered_signal = fft_bandpass_filter(signal, low_cutoff, high_cutoff, fs)
 
-                database[filename]['signals'][electrode] = filtered_signal
+            database[filename]['signals'][electrode] = filtered_signal
 #plot_database(database, 1)
 
 
@@ -126,11 +124,13 @@ for filename, record in database.items():
     # Compute forward difference of triggering electrode signal and find its minima
     raw_trigger_signal = np.array(record['signals'][triggering_electrode])
     trigger_signal = forward_diff(raw_trigger_signal, slope_width)
+    trigger_threshold = np.mean(np.sort(trigger_signal)[:len(record['responses'])]) / 2
 
     # #Compare raw triggering signal and its difference
     # plt.figure()
     # plt.plot(range(len(trigger_signal)), raw_trigger_signal, 'b-')
     # plt.plot(range(len(trigger_signal)), trigger_signal, 'g-', linewidth=1)
+    # plt.axhline(trigger_threshold, color='k', linestyle='dashed')
     # plt.xlabel('Time [s]')
     # plt.ylabel('uV')
     # plt.grid()
@@ -187,14 +187,14 @@ for filename, record in database.items():
                             #Plot triggers
                             plt.figure()
                             plt.title(electrode)
-                            plt.plot(np.array(range(len(chunk)))/fs, chunk, 'g-', linewidth=1)
+                            plt.plot((np.array(range(len(chunk))))/fs, chunk, 'g-', linewidth=1)
                             plt.axvline(0.1, color='k', linestyle='dashed')
                             plt.axvline(0.27, color='b', linestyle='dashed')
                             plt.xlabel('Time [s]')
                             plt.ylabel('uV')
                             plt.grid()
                             plt.savefig("figures\\" + basename(filename) + "\\chunks\\"+electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png')
-                            plt.close('all')
+                            plt.close()
 
                         if chunk_min > chunk_lower_limit and chunk_max < chunk_upper_limit and chunk_peak_to_peak < chunk_max_peak_to_peak:
                             try:
@@ -252,7 +252,6 @@ for filename, record in database.items():
         plt.ylabel('uV')
         if invert_y_axis:
             plt.gca().invert_yaxis()
-        plt.draw()
         figure_file = "figures\\" + basename(filename) + "\\erp\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(high_cutoff)) + 'Hz'
         plt.savefig(figure_file + '.png')
         #plt.show()
