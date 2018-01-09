@@ -1,6 +1,6 @@
 from data_utils import *
 ############# CONFIG ###########################
-database_regex = 'csv/*/record-F*.csv'
+database_regex = 'csv/1/record-F*.csv'
 
 triggering_electrode = 'F7'
 electrodes_to_analyze = ['P7', 'P8']
@@ -11,6 +11,7 @@ ref_electrodes = ['AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4
 all_electrodes = np.unique([triggering_electrode] + electrodes_to_analyze + ref_electrodes)
 
 # Filtering options
+filter_on = True
 low_cutoff = 0.2
 high_cutoff = 24 # desired cutoff frequency of the filter, Hz (0 to disable filtering)
 
@@ -23,8 +24,6 @@ max_trigger_peak_width = time2sample(3) # in seconds
 slope_width = 9 # in number of samples, controls shift of the stimuli start
 
 # Valid signal value limits
-chunk_lower_limit = -100
-chunk_upper_limit = 100
 chunk_max_peak_to_peak = 70
 
 
@@ -52,13 +51,13 @@ if common_avg_ref:
 
 
 ########### SIGNALS FILTERING ###############
-if high_cutoff > 0:
-    from filtering import *
+from filtering import *
 
-    # Modify database by filtering signals
-    for filename, record in database.items():
-        for electrode, signal in record['signals'].items():
-            #filtered_signal = butter_lowpass_filter(signal, high_cutoff, fs, 6)
+# Modify database by filtering signals
+for filename, record in database.items():
+    for electrode, signal in record['signals'].items():
+        if electrode == triggering_electrode or filter_on:
+            # filtered_signal = butter_lowpass_filter(signal, high_cutoff, fs, 6)
             filtered_signal = fft_bandpass_filter(signal, low_cutoff, high_cutoff, fs)
 
             database[filename]['signals'][electrode] = filtered_signal
@@ -124,7 +123,7 @@ for filename, record in database.items():
     # Compute forward difference of triggering electrode signal and find its minima
     raw_trigger_signal = np.array(record['signals'][triggering_electrode])
     trigger_signal = forward_diff(raw_trigger_signal, slope_width)
-    trigger_threshold = np.mean(np.sort(trigger_signal)[:len(record['responses'])]) / 2
+    trigger_threshold = (np.mean(np.sort(trigger_signal)[:len(record['responses'])]) + np.mean(np.sort(trigger_signal))) / 2
 
     # #Compare raw triggering signal and its difference
     # plt.figure()
@@ -187,16 +186,16 @@ for filename, record in database.items():
                             #Plot triggers
                             plt.figure()
                             plt.title(electrode)
-                            plt.plot((np.array(range(len(chunk))))/fs, chunk, 'g-', linewidth=1)
-                            plt.axvline(0.1, color='k', linestyle='dashed')
-                            plt.axvline(0.27, color='b', linestyle='dashed')
+                            plt.plot(((np.array(range(len(chunk)))) - pre_stimuli)/fs, chunk, 'g-', linewidth=1)
+                            plt.axvline(0, color='k', linestyle='dashed')
+                            plt.axvline(0.17, color='b', linestyle='dashed')
                             plt.xlabel('Time [s]')
                             plt.ylabel('uV')
                             plt.grid()
                             plt.savefig("figures\\" + basename(filename) + "\\chunks\\"+electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png')
                             plt.close()
 
-                        if chunk_min > chunk_lower_limit and chunk_max < chunk_upper_limit and chunk_peak_to_peak < chunk_max_peak_to_peak:
+                        if chunk_peak_to_peak < chunk_max_peak_to_peak:
                             try:
                                 face_id = record['order'][trigger_iter][0]
                                 if len(record['order']) > 0 and is_face_emotional(face_id):
