@@ -43,7 +43,7 @@ if common_avg_ref:
 
         # Change reference of all electrodes
         for electrode, signal in record['signals'].items():
-            if electrode != triggering_electrode:
+            if electrode in ref_electrodes:
                 database[filename]['signals'][electrode] -= mean
 
 
@@ -224,7 +224,7 @@ for filename, record in database.items():
     n170_begin = pre_stimuli + time2sample(0.14)
     n170_end = pre_stimuli + time2sample(0.185)
 
-    for electrode in extracted_chunks_emo:
+    for electrode in electrodes_to_analyze:
 
         chunks_emo = extracted_chunks_emo[electrode]
         chunks_neutral = extracted_chunks_neutral[electrode]
