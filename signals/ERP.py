@@ -1,11 +1,11 @@
 from data_utils import *
 ############# CONFIG ###########################
-database_regex = 'csv/1/record-F*.csv'
+database_regex = 'csv/*/record-F*.csv'
 
 triggering_electrode = 'F7'
 electrodes_to_analyze = ['P7', 'P8']
 
-common_avg_ref = True
+common_avg_ref = False
 ref_electrodes = ['AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'] if common_avg_ref else []
 
 all_electrodes = np.unique([triggering_electrode] + electrodes_to_analyze + ref_electrodes)
@@ -251,7 +251,7 @@ for filename, record in database.items():
         plt.ylabel('uV')
         if invert_y_axis:
             plt.gca().invert_yaxis()
-        figure_file = "figures\\" + basename(filename) + "\\erp\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(high_cutoff)) + 'Hz'
+        figure_file = "figures\\" + basename(filename) + "\\erp\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on*high_cutoff)) + 'Hz'
         plt.savefig(figure_file + '.png')
         #plt.show()
 
