@@ -84,7 +84,7 @@ function initialize(box)
 	display_cue_duration = 0.3
 	rest_duration = 1.2
     
-    inter_block_rest = 15
+    inter_block_rest = 10
     block_size = 64
     experiment_units = box:get_setting(4)
     
@@ -197,11 +197,11 @@ function process(box)
     response_time = 0.0
     while images_iter <= #sequence do
         
-        if images_iter%block_size==0 and images_iter~=#sequence then
+        if (images_iter-1)%block_size==0 and images_iter~=1 then
             box:send_stimulation(1, OVTK_StimulationId_RestStart, box:get_current_time(), 0)
             wait_for_sec(box, inter_block_rest)
+            box:send_stimulation(1, OVTK_StimulationId_Label_1A, box:get_current_time(), 0)
             box:send_stimulation(1, OVTK_StimulationId_RestStop, box:get_current_time(), 0)
-            box:send_stimulation(1, OVTK_StimulationId_Label_20, box:get_current_time(), 0)
         end
         
         wait_for_sec(box, rest_duration)
