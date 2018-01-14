@@ -1,11 +1,12 @@
 from data_utils import *
+import scipy
 ############# CONFIG ###########################
-database_regex = 'csv/*/record-F*.csv'
+database_regex = 'csv/1/record-F*.csv'
 
 triggering_electrode = 'F7'
 electrodes_to_analyze = ['P7', 'P8']
 
-common_avg_ref = False
+common_avg_ref = True
 ref_electrodes = ['AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'] if common_avg_ref else []
 
 all_electrodes = np.unique([triggering_electrode] + electrodes_to_analyze + ref_electrodes)
@@ -25,6 +26,8 @@ slope_width = 9 # in number of samples, controls shift of the stimuli start
 
 # Valid signal value limits
 chunk_max_peak_to_peak = 70
+peak_filtering = False
+min_peak_score = 2
 
 
 ######### READ SIGNALS FROM DISK ############################
@@ -182,10 +185,26 @@ for filename, record in database.items():
                         chunk_min = np.min(chunk)
                         chunk_peak_to_peak = chunk_max - chunk_min
 
+                        if peak_filtering:
+                            def inv_ric(points, a):
+                                return -scipy.signal.ricker(points, a)
+
+                            widths = 0.5 * np.arange(1, 10)
+                            cwtmatr = scipy.signal.cwt(chunk, inv_ric, widths)
+                            peak_score = np.mean(cwtmatr[:, pre_stimuli + time2sample(0.17)])
+
+                            # plt.figure()
+                            # plt.title(peak_score)
+                            # plt.imshow(cwtmatr, extent=[-0.2, 1, chunk.min(), chunk.max()], cmap='PRGn', aspect='auto',
+                            #            vmax=abs(cwtmatr).max(), vmin=-abs(cwtmatr).max())
+                            # plt.show()
+                        else:
+                            peak_score = min_peak_score + 1
+
                         if trigger_iter < 10:
                             #Plot triggers
                             plt.figure()
-                            plt.title(electrode)
+                            plt.title(electrode + (', peak score: ' + str(peak_score)) if peak_filtering else '')
                             plt.plot(((np.array(range(len(chunk)))) - pre_stimuli)/fs, chunk, 'g-', linewidth=1)
                             plt.axvline(0, color='k', linestyle='dashed')
                             plt.axvline(0.17, color='b', linestyle='dashed')
@@ -195,7 +214,7 @@ for filename, record in database.items():
                             plt.savefig("figures\\" + basename(filename) + "\\chunks\\"+electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png')
                             plt.close()
 
-                        if chunk_peak_to_peak < chunk_max_peak_to_peak:
+                        if chunk_peak_to_peak < chunk_max_peak_to_peak and peak_score > min_peak_score:
                             try:
                                 face_id = record['order'][trigger_iter][0]
                                 if len(record['order']) > 0 and is_face_emotional(face_id):
