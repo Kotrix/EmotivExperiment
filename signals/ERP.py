@@ -17,8 +17,8 @@ low_cutoff = 0.2
 high_cutoff = 24 # desired cutoff frequency of the filter, Hz (0 to disable filtering)
 
 # Define pre and post stimuli period of chunk (in seconds)
-pre_stimuli = time2sample(0.2)
-post_stimuli = time2sample(1.0)
+pre_stimuli = time2sample(0.1)
+post_stimuli = time2sample(0.4)
 
 # Define threshold for trigger signal
 max_trigger_peak_width = time2sample(3) # in seconds
@@ -26,8 +26,12 @@ slope_width = 9 # in number of samples, controls shift of the stimuli start
 
 # Valid signal value limits
 chunk_max_peak_to_peak = 70
-peak_filtering = False
+peak_filtering = True
 min_peak_score = 2
+
+csvfile = open('amplitudes.csv', 'w', newline='')
+writer = csv.writer(csvfile, delimiter=',', quotechar='|')
+writer.writerow(['file', 'electrode', 'amp_emo', 'amp_neutral', 'chunks_emo', 'chunks_neutral'])
 
 
 ######### READ SIGNALS FROM DISK ############################
@@ -43,6 +47,7 @@ if common_avg_ref:
             if electrode in ref_electrodes:
                 mean += signal
         mean /= len(ref_electrodes)
+
 
         # Change reference of all electrodes
         for electrode, signal in record['signals'].items():
@@ -274,14 +279,10 @@ for filename, record in database.items():
         plt.savefig(figure_file + '.png')
         #plt.show()
 
-        print(electrode)
-        print(len(chunks_emo), '\t', len(chunks_neutral))
-        print(averaged_emo[n170_begin:n170_end].min(), '\t', averaged_neutral[n170_begin:n170_end].min())
+        # print(electrode)
+        # print(len(chunks_emo), '\t', len(chunks_neutral))
+        # print(averaged_emo[n170_begin:n170_end].min(), '\t', averaged_neutral[n170_begin:n170_end].min())
 
-        with open(figure_file + '.csv', 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile, delimiter=',', quotechar='|')
-            writer.writerow(['emo', 'neutral'])
-            writer.writerow([len(chunks_emo), len(chunks_neutral)])
-            writer.writerow([averaged_emo[n170_begin:n170_end].min(), averaged_neutral[n170_begin:n170_end].min()])
+        writer.writerow([basename(filename), electrode, averaged_emo[n170_begin:n170_end].min(), averaged_neutral[n170_begin:n170_end].min(), len(chunks_emo), len(chunks_neutral)])
 
     print('\n')
