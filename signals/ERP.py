@@ -29,7 +29,7 @@ chunk_max_peak_to_peak = 70
 peak_filtering = True
 min_peak_score = 2
 
-csvfile = open('amplitudes.csv', 'w', newline='')
+csvfile = open('amplitudes' + ('_common' if common_avg_ref else '_org') + '.csv', 'w', newline='')
 writer = csv.writer(csvfile, delimiter=',', quotechar='|')
 writer.writerow(['file', 'electrode', 'amp_emo', 'amp_neutral', 'chunks_emo', 'chunks_neutral'])
 
@@ -264,6 +264,19 @@ for filename, record in database.items():
         averaged_emo -= np.mean(averaged_emo[:pre_stimuli+1])
         averaged_neutral -= np.mean(averaged_neutral[:pre_stimuli+1])
 
+        peaks_emo = scipy.signal.find_peaks_cwt(averaged_emo, np.arange(1, 10))
+        n170_index = np.argmin(averaged_emo[n170_begin:n170_end]) + n170_begin
+        previous_peak_emo = max([x for x in peaks_emo if x < n170_index]) - 1
+        vpp_emo = averaged_emo[previous_peak_emo] - averaged_emo[n170_begin:n170_end].min()
+
+        peaks_neutral = scipy.signal.find_peaks_cwt(averaged_neutral, np.arange(1, 10))
+        n170_index = np.argmin(averaged_neutral[n170_begin:n170_end]) + n170_begin
+        previous_peak_neutral = max([x for x in peaks_neutral if x < n170_index]) - 1
+        vpp_neutral = averaged_neutral[previous_peak_neutral] - averaged_neutral[n170_begin:n170_end].min()
+
+        print(vpp_emo, vpp_neutral)
+        writer.writerow([basename(filename), electrode, vpp_emo, vpp_neutral, len(chunks_emo), len(chunks_neutral)])
+
         plt.figure()
         plt.title(electrode + ' - ' + str(len(chunks_emo)) + '/' + str(len(chunks_neutral)) + ' chunks average')
         plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo, color='r',
@@ -282,7 +295,5 @@ for filename, record in database.items():
         # print(electrode)
         # print(len(chunks_emo), '\t', len(chunks_neutral))
         # print(averaged_emo[n170_begin:n170_end].min(), '\t', averaged_neutral[n170_begin:n170_end].min())
-
-        writer.writerow([basename(filename), electrode, averaged_emo[n170_begin:n170_end].min(), averaged_neutral[n170_begin:n170_end].min(), len(chunks_emo), len(chunks_neutral)])
 
     print('\n')
