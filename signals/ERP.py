@@ -1,12 +1,12 @@
 from data_utils import *
 import scipy
 ############# CONFIG ###########################
-database_regex = 'csv/1/record-F*.csv'
+database_regex = 'csv/*/record-F*.csv'
 
 triggering_electrode = 'F7'
 electrodes_to_analyze = ['P7', 'P8']
 
-common_avg_ref = True
+common_avg_ref = False
 ref_electrodes = ['AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'] if common_avg_ref else []
 
 all_electrodes = np.unique([triggering_electrode] + electrodes_to_analyze + ref_electrodes)
@@ -259,11 +259,14 @@ for filename, record in database.items():
         # Grand-average over all chunks
         averaged_emo = np.mean(chunks_emo, axis=0)
         averaged_neutral = np.mean(chunks_neutral, axis=0)
+        averaged_total = np.mean(np.concatenate((chunks_neutral, chunks_emo)), axis=0)
+        baseline = np.mean(averaged_total[:pre_stimuli + 1])
 
         # change voltage scale as difference from baseline
-        averaged_emo -= np.mean(averaged_emo[:pre_stimuli+1])
-        averaged_neutral -= np.mean(averaged_neutral[:pre_stimuli+1])
+        averaged_emo -= baseline
+        averaged_neutral -= baseline
 
+        # TODO: take into account invert_axis
         peaks_emo = scipy.signal.find_peaks_cwt(averaged_emo, np.arange(1, 10))
         n170_index = np.argmin(averaged_emo[n170_begin:n170_end]) + n170_begin
         previous_peak_emo = max([x for x in peaks_emo if x < n170_index]) - 1
