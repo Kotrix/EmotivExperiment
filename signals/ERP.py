@@ -113,8 +113,8 @@ def is_face_emotional(face_id):
 
 def forward_diff(signal, order):
     new_signal = np.zeros_like(signal)
-    for i in range(len(signal) - order):
-        new_signal[i] = np.sum(np.diff(signal[i:(i + order)]))
+    for n in range(len(signal) - order):
+        new_signal[n] = np.sum(np.diff(signal[n:(n + order)]))
 
     return new_signal
 
@@ -166,12 +166,12 @@ for filename, record in database.items():
                 # #Plot single triggers
                 # margin = 10
                 # plt.figure()
-                # plt.plot(range(len(trigger_signal[stimuli_index-margin:stimuli_index+margin])), raw_trigger_signal[stimuli_index-margin:stimuli_index+margin], 'b-')
-                # plt.plot(range(len(trigger_signal[stimuli_index-margin:stimuli_index+margin])), trigger_signal[stimuli_index-margin:stimuli_index+margin], 'g-', linewidth=1)
+                # plt.plot(range(len(trigger_signal[stimuli_index-margin:stimuli_index+margin])), raw_trigger_signal[stimuli_index-margin:stimuli_index+margin], 'g-', linewidth=3)
+                # plt.plot(range(len(trigger_signal[stimuli_index-margin:stimuli_index+margin])), trigger_signal[stimuli_index-margin:stimuli_index+margin], 'b-', linewidth=3)
                 # plt.axvline(margin, color='k', linestyle='dashed')
                 # plt.xlabel('Time [s]')
                 # plt.ylabel('uV')
-                # plt.grid()
+                # #plt.grid()
                 # plt.show()
 
                 try:
