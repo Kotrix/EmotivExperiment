@@ -103,12 +103,24 @@ else:
 
 ######### EXTRACT CHUNKS OF SIGNAL AFTER STIMULI ##################
 
-def is_face_emotional(face_id):
-    neutral_labels = [2, 6, 9, 11, 15, 17, 19, 24]
-    for i in neutral_labels:
+def is_face_angry(face_id):
+    labels = {1, 4, 7, 10, 13, 16, 20, 22}
+    for i in labels:
         if face_id == 33024 + i:
-            return False
-    return True
+            return True
+    return False
+
+def is_face_happy(face_id):
+    labels = {3, 5, 8, 12, 14, 16, 18, 21}
+    for i in labels:
+        if face_id == 33024 + i:
+            return True
+    return False
+
+def is_face_emotional(face_id):
+    if is_face_angry(face_id) or is_face_happy(face_id):
+        return True
+    return False
 
 
 def forward_diff(signal, order):
