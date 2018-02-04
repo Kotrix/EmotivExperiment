@@ -6,7 +6,7 @@ database_regex = 'csv/*/record-F*.csv'
 triggering_electrode = 'F7'
 electrodes_to_analyze = ['P7', 'P8']
 
-common_avg_ref = False
+common_avg_ref = True
 ref_electrodes = ['AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'] if common_avg_ref else []
 
 all_electrodes = np.unique([triggering_electrode] + electrodes_to_analyze + ref_electrodes)
@@ -17,8 +17,8 @@ low_cutoff = 0.2
 high_cutoff = 24 # desired cutoff frequency of the filter, Hz (0 to disable filtering)
 
 # Define pre and post stimuli period of chunk (in seconds)
-pre_stimuli = time2sample(0.1)
-post_stimuli = time2sample(0.4)
+pre_stimuli = time2sample(0.2)
+post_stimuli = time2sample(1)
 
 # Define threshold for trigger signal
 max_trigger_peak_width = time2sample(3) # in seconds
@@ -26,12 +26,12 @@ slope_width = 9 # in number of samples, controls shift of the stimuli start
 
 # Valid signal value limits
 chunk_max_peak_to_peak = 70
-peak_filtering = True
-min_peak_score = 2
+peak_filtering = False
+min_peak_score = 10
 
 csvfile = open('amplitudes' + ('_common' if common_avg_ref else '_org') + '.csv', 'w', newline='')
 writer = csv.writer(csvfile, delimiter=',', quotechar='|')
-writer.writerow(['file', 'electrode', 'amp_emo', 'amp_neutral', 'chunks_emo', 'chunks_neutral'])
+writer.writerow(['file', 'electrode', 'amp_angry', 'amp_happy', 'amp_neutral', 'chunks_angry', 'chunks_happy', 'chunks_neutral'])
 
 
 ######### READ SIGNALS FROM DISK ############################
@@ -130,15 +130,16 @@ def forward_diff(signal, order):
 
     return new_signal
 
+# Init container for ERP chunks
+extracted_chunks_angry = OrderedDict()
+extracted_chunks_happy = OrderedDict()
+extracted_chunks_neutral = OrderedDict()
+for e in electrodes_to_analyze:
+    extracted_chunks_angry[e] = list()
+    extracted_chunks_happy[e] = list()
+    extracted_chunks_neutral[e] = list()
 
 for filename, record in database.items():
-
-    # Init container for ERP chunks
-    extracted_chunks_emo = OrderedDict()
-    extracted_chunks_neutral = OrderedDict()
-    for e in electrodes_to_analyze:
-        extracted_chunks_emo[e] = list()
-        extracted_chunks_neutral[e] = list()
 
     # Compute forward difference of triggering electrode signal and find its minima
     raw_trigger_signal = np.array(record['signals'][triggering_electrode])
@@ -218,7 +219,7 @@ for filename, record in database.items():
                         else:
                             peak_score = min_peak_score + 1
 
-                        if trigger_iter < 10:
+                        if trigger_iter < 0:
                             #Plot triggers
                             plt.figure()
                             plt.title(electrode + (', peak score: ' + str(peak_score)) if peak_filtering else '')
@@ -234,8 +235,10 @@ for filename, record in database.items():
                         if chunk_peak_to_peak < chunk_max_peak_to_peak and peak_score > min_peak_score:
                             try:
                                 face_id = record['order'][trigger_iter][0]
-                                if len(record['order']) > 0 and is_face_emotional(face_id):
-                                    extracted_chunks_emo[electrode].append(chunk)
+                                if len(record['order']) > 0 and is_face_angry(face_id):
+                                    extracted_chunks_angry[electrode].append(chunk)
+                                elif len(record['order']) > 0 and is_face_happy(face_id):
+                                    extracted_chunks_happy[electrode].append(chunk)
                                 else:
                                     extracted_chunks_neutral[electrode].append(chunk)
                             except:
@@ -247,68 +250,78 @@ for filename, record in database.items():
             i += 1
 
     # Calculate difference between true timestamps and openvibe timestamps
-    diff = np.subtract(true_timestamps[:len(openvibe_timestamps)], openvibe_timestamps)
-    m = np.mean(diff)
-    v = np.std(diff)
-    print(filename, m, v)
+    # diff = np.subtract(true_timestamps[:len(openvibe_timestamps)], openvibe_timestamps)
+    # m = np.mean(diff)
+    # v = np.std(diff)
+    print(filename)
 
 
-    ######### AVERAGE CHUNKS ##################
-    invert_y_axis = False
+######### AVERAGE CHUNKS ##################
+invert_y_axis = False
 
-    # N170 area 140-185ms
-    n170_begin = pre_stimuli + time2sample(0.14)
-    n170_end = pre_stimuli + time2sample(0.185)
+# N170 area 140-185ms
+n170_begin = pre_stimuli + time2sample(0.14)
+n170_end = pre_stimuli + time2sample(0.185)
 
-    for electrode in electrodes_to_analyze:
+for electrode in electrodes_to_analyze:
 
-        chunks_emo = extracted_chunks_emo[electrode]
-        chunks_neutral = extracted_chunks_neutral[electrode]
+    chunks_angry = extracted_chunks_angry[electrode]
+    chunks_happy = extracted_chunks_happy[electrode]
+    chunks_neutral = extracted_chunks_neutral[electrode]
 
-        if len(chunks_emo) == 0 or len(chunks_neutral) == 0:
-            continue
+    if len(chunks_angry) == 0 or len(chunks_neutral) == 0 or len(chunks_happy) == 0:
+        continue
 
-        # Grand-average over all chunks
-        averaged_emo = np.mean(chunks_emo, axis=0)
-        averaged_neutral = np.mean(chunks_neutral, axis=0)
-        averaged_total = np.mean(np.concatenate((chunks_neutral, chunks_emo)), axis=0)
-        baseline = np.mean(averaged_total[:pre_stimuli + 1])
+    # Grand-average over all chunks
+    averaged_angry = np.mean(chunks_angry, axis=0)
+    averaged_happy = np.mean(chunks_happy, axis=0)
+    averaged_neutral = np.mean(chunks_neutral, axis=0)
+    averaged_total = np.mean(np.concatenate((chunks_neutral, chunks_angry, chunks_happy)), axis=0)
+    baseline = np.mean(averaged_total[:pre_stimuli + 1])
 
-        # change voltage scale as difference from baseline
-        averaged_emo -= baseline
-        averaged_neutral -= baseline
+    # change voltage scale as difference from baseline
+    averaged_angry -= baseline
+    averaged_happy -= baseline
+    averaged_neutral -= baseline
 
-        # TODO: take into account invert_axis
-        peaks_emo = scipy.signal.find_peaks_cwt(averaged_emo, np.arange(1, 10))
-        n170_index = np.argmin(averaged_emo[n170_begin:n170_end]) + n170_begin
-        previous_peak_emo = max([x for x in peaks_emo if x < n170_index]) - 1
-        vpp_emo = averaged_emo[previous_peak_emo] - averaged_emo[n170_begin:n170_end].min()
+    # TODO: take into account invert_axis
+    peaks_angry = scipy.signal.find_peaks_cwt(averaged_angry, np.arange(1, 10))
+    n170_index = np.argmin(averaged_angry[n170_begin:n170_end]) + n170_begin
+    previous_peak_angry = max([x for x in peaks_angry if x < n170_index]) - 1
+    vpp_angry = averaged_angry[previous_peak_angry] - averaged_angry[n170_begin:n170_end].min()
 
-        peaks_neutral = scipy.signal.find_peaks_cwt(averaged_neutral, np.arange(1, 10))
-        n170_index = np.argmin(averaged_neutral[n170_begin:n170_end]) + n170_begin
-        previous_peak_neutral = max([x for x in peaks_neutral if x < n170_index]) - 1
-        vpp_neutral = averaged_neutral[previous_peak_neutral] - averaged_neutral[n170_begin:n170_end].min()
+    peaks_happy = scipy.signal.find_peaks_cwt(averaged_happy, np.arange(1, 10))
+    n170_index = np.argmin(averaged_happy[n170_begin:n170_end]) + n170_begin
+    previous_peak_happy = max([x for x in peaks_happy if x < n170_index]) - 1
+    vpp_happy = averaged_angry[previous_peak_happy] - averaged_happy[n170_begin:n170_end].min()
 
-        print(vpp_emo, vpp_neutral)
-        writer.writerow([basename(filename), electrode, vpp_emo, vpp_neutral, len(chunks_emo), len(chunks_neutral)])
+    peaks_neutral = scipy.signal.find_peaks_cwt(averaged_neutral, np.arange(1, 10))
+    n170_index = np.argmin(averaged_neutral[n170_begin:n170_end]) + n170_begin
+    previous_peak_neutral = max([x for x in peaks_neutral if x < n170_index]) - 1
+    vpp_neutral = averaged_neutral[previous_peak_neutral] - averaged_neutral[n170_begin:n170_end].min()
 
-        plt.figure()
-        plt.title(electrode + ' - ' + str(len(chunks_emo)) + '/' + str(len(chunks_neutral)) + ' chunks average')
-        plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo, color='r',
-                 linestyle='dashed')
-        plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='g')
-        plt.axvline(0, color='k', linestyle='dashed')
-        plt.axhline(0, color='k', linestyle='dashed')
-        plt.xlabel('Time [ms]')
-        plt.ylabel('uV')
-        if invert_y_axis:
-            plt.gca().invert_yaxis()
-        figure_file = "figures\\" + basename(filename) + "\\erp\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on*high_cutoff)) + 'Hz'
-        plt.savefig(figure_file + '.png')
-        #plt.show()
+    print(vpp_angry, vpp_happy, vpp_neutral)
+    writer.writerow([basename(filename), electrode, vpp_angry, vpp_happy, vpp_neutral, len(chunks_angry), len(chunks_happy), len(chunks_neutral)])
 
-        # print(electrode)
-        # print(len(chunks_emo), '\t', len(chunks_neutral))
-        # print(averaged_emo[n170_begin:n170_end].min(), '\t', averaged_neutral[n170_begin:n170_end].min())
+    plt.figure()
+    plt.title(electrode + ' - ' + str(len(chunks_angry)) + '/' + str(len(chunks_happy)) + '/' + str(len(chunks_neutral)) + ' chunks average')
+    plt.plot(np.multiply(np.arange(len(averaged_angry)) - pre_stimuli, 1000 / fs), averaged_angry, color='r')
+    plt.plot(np.multiply(np.arange(len(averaged_happy)) - pre_stimuli, 1000 / fs), averaged_happy, color='b')
+    plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='#808080')
+    plt.axvline(0, color='k', linestyle='dashed')
+    plt.axhline(0, color='k', linestyle='dashed')
+    plt.xlabel('Time [ms]')
+    plt.ylabel('uV')
+    if invert_y_axis:
+        plt.gca().invert_yaxis()
+    figure_file = "figures\\" + basename(filename) + "\\erp\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on*high_cutoff)) + 'Hz'
+    figure_file_all = "figures\\all\\" + basename(filename) + "_" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on * high_cutoff)) + 'Hz'
+    plt.savefig(figure_file + '.png')
+    plt.savefig(figure_file_all + '.png')
+    #plt.show()
 
-    print('\n')
+    # print(electrode)
+    # print(len(chunks_emo), '\t', len(chunks_neutral))
+    # print(averaged_emo[n170_begin:n170_end].min(), '\t', averaged_neutral[n170_begin:n170_end].min())
+
+print('\n')
