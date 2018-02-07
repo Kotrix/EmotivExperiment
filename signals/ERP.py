@@ -40,19 +40,21 @@ database = read_openvibe_csv_database(database_regex, all_electrodes)
 
 if common_avg_ref:
     ######## COMMON AVERAGE REFERENCE ###########################
+    common_database = database.copy()
     for filename, record in database.items():
-        # Find average signal over all ref_electrodes
-        mean = np.zeros(len(record['signals'][triggering_electrode]))
-        for electrode, signal in record['signals'].items():
-            if electrode in ref_electrodes:
-                mean += signal
-        mean /= len(ref_electrodes)
+        for e in electrodes_to_analyze:
+            # Find average signal over all ref_electrodes except one being re-referenced
+            mean = np.zeros(len(record['signals'][triggering_electrode]))
+            count = 0
+            for electrode, signal in record['signals'].items():
+                if electrode in ref_electrodes and electrode != e:
+                    mean += signal
+                    count += 1
+            mean /= count
 
+            common_database[filename]['signals'][e] -= mean
 
-        # Change reference of all electrodes
-        for electrode, signal in record['signals'].items():
-            if electrode in ref_electrodes:
-                database[filename]['signals'][electrode] -= mean
+    database = common_database
 
 
 #plot_database(database, 1)
