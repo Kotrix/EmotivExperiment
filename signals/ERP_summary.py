@@ -1,34 +1,34 @@
 from data_utils import *
 import scipy
 ############# CONFIG ###########################
-database_regex = 'csv/*/record-FG*.csv'
-suffix = '_FGT'
+database_regex = 'csv/*/record-F*.csv'
+suffix = ''
 
 triggering_electrode = 'F7'
-electrodes_to_analyze = ['P7', 'P8']
+electrodes_to_analyze = ['P7','P8','O1','O2']
 
 common_avg_ref = False
-ref_electrodes = ['AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'] if common_avg_ref else []
+ref_electrodes = []
 
 all_electrodes = np.unique([triggering_electrode] + electrodes_to_analyze + ref_electrodes)
 
 # Filtering options
 filter_on = True
-low_cutoff = 0.2
+low_cutoff = 0.5
 high_cutoff = 24 # desired cutoff frequency of the filter, Hz (0 to disable filtering)
 
 # Define pre and post stimuli period of chunk (in seconds)
-pre_stimuli = time2sample(0.2)
-post_stimuli = time2sample(1)
+pre_stimuli = time2sample(0.1)
+post_stimuli = time2sample(0.5)
 
 # Define threshold for trigger signal
 max_trigger_peak_width = time2sample(3) # in seconds
-slope_width = 9 # in number of samples, controls shift of the stimuli start
+slope_width = 7 # in number of samples, controls shift of the stimuli start
 
 # Valid signal value limits
 chunk_max_peak_to_peak = 70
-peak_filtering = False
-min_peak_score = 10
+peak_filtering = True
+min_peak_score = 2
 
 csvfile = open('amplitudes' + ('_common' if common_avg_ref else '_org') + '.csv', 'w', newline='')
 writer = csv.writer(csvfile, delimiter=',', quotechar='|')
@@ -51,10 +51,29 @@ for filename, record in database.items():
     for electrode, signal in record['signals'].items():
         if electrode == triggering_electrode or filter_on:
             # filtered_signal = butter_lowpass_filter(signal, high_cutoff, fs, 6)
-            filtered_signal = fft_bandpass_filter(signal, low_cutoff, high_cutoff, fs)
+            filtered_signal = butter_bandpass_filter(signal, [low_cutoff, high_cutoff], fs)
 
             database[filename]['signals'][electrode] = filtered_signal
 #plot_database(database, 1)
+
+# for filename, record in database.items():
+#     for electrode, signal in record['signals'].items():
+#         if electrode in electrodes_to_analyze:
+#             import numpy as np
+#             import matplotlib.pyplot as plt
+#             import scipy.fftpack
+#
+#             N = 4480
+#             # sample spacing
+#             T = 1.0 / 128.0
+#             y = signal[:N]
+#             yf = scipy.fftpack.fft(y)
+#             xf = np.linspace(0.0, 1.0 / (2.0 * T), N / 2)
+#
+#             fig, ax = plt.subplots()
+#             ax.plot(xf, 2.0 / N * np.abs(yf[:N // 2]))
+#             plt.title(electrode)
+#             plt.show()
 
 
 ############ CUT THE END OF SIGNAL TO REMOVE FILTERING ARTIFACTS ##################
@@ -96,7 +115,7 @@ def is_face_angry(face_id):
     return False
 
 def is_face_happy(face_id):
-    labels = {3, 5, 8, 12, 14, 16, 18, 21}
+    labels = {3, 5, 8, 12, 14, 18, 21, 23}
     for i in labels:
         if face_id == 33024 + i:
             return True
@@ -134,7 +153,7 @@ for filename, record in database.items():
     # #Compare raw triggering signal and its difference
     # plt.figure()
     # plt.plot(range(len(trigger_signal)), raw_trigger_signal, 'b-')
-    # plt.plot(range(len(trigger_signal)), trigger_signal, 'g-', linewidth=1)
+    # #plt.plot(range(len(trigger_signal)), trigger_signal, 'g-', linewidth=1)
     # plt.axhline(trigger_threshold, color='k', linestyle='dashed')
     # plt.xlabel('Time [s]')
     # plt.ylabel('uV')
@@ -157,12 +176,16 @@ for filename, record in database.items():
 
             if was_response_correct:
                 # Find stimuli index
+                margin = 100
                 search_area_start = max(0, i - max_trigger_peak_width // 2)
                 search_area_end = min(i + max_trigger_peak_width // 2, len(trigger_signal))
                 stimuli_index = int(search_area_start + np.argmin(trigger_signal[search_area_start:search_area_end]))
+                if stimuli_index < margin:
+                    i += max_trigger_peak_width
+                    trigger_iter += 1
+                    continue
 
-                # #Plot single triggers
-                # margin = 10
+                #Plot single trigger
                 # plt.figure()
                 # plt.plot(range(len(trigger_signal[stimuli_index-margin:stimuli_index+margin])), raw_trigger_signal[stimuli_index-margin:stimuli_index+margin], 'g-', linewidth=3)
                 # plt.plot(range(len(trigger_signal[stimuli_index-margin:stimuli_index+margin])), trigger_signal[stimuli_index-margin:stimuli_index+margin], 'b-', linewidth=3)
@@ -253,7 +276,7 @@ for filename, record in database.items():
 
 
 common_avg_ref = True
-ref_electrodes = ['AF3','F3','FC5','T7','O1','O2','T8','FC6','F4','AF4'] if common_avg_ref else []
+ref_electrodes = ['AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'] if common_avg_ref else []
 
 all_electrodes = np.unique([triggering_electrode] + electrodes_to_analyze + ref_electrodes)
 
@@ -269,19 +292,21 @@ database = read_openvibe_csv_database(database_regex, all_electrodes)
 
 if common_avg_ref:
     ######## COMMON AVERAGE REFERENCE ###########################
+    common_database = database.copy()
     for filename, record in database.items():
-        # Find average signal over all ref_electrodes
-        mean = np.zeros(len(record['signals'][triggering_electrode]))
-        for electrode, signal in record['signals'].items():
-            if electrode in ref_electrodes:
-                mean += signal
-        mean /= len(ref_electrodes)
+        for e in electrodes_to_analyze:
+            # Find average signal over all ref_electrodes except one being re-referenced
+            mean = np.zeros(len(record['signals'][triggering_electrode]))
+            count = 0
+            for electrode, signal in record['signals'].items():
+                if electrode in ref_electrodes and electrode != e:
+                    mean += signal
+                    count += 1
+            mean /= count
 
+            common_database[filename]['signals'][e] -= mean
 
-        # Change reference of all electrodes
-        for electrode, signal in record['signals'].items():
-            if electrode in ref_electrodes + electrodes_to_analyze:
-                database[filename]['signals'][electrode] -= mean
+    database = common_database
 
 
 #plot_database(database, 1)
@@ -295,7 +320,7 @@ for filename, record in database.items():
     for electrode, signal in record['signals'].items():
         if electrode == triggering_electrode or filter_on:
             # filtered_signal = butter_lowpass_filter(signal, high_cutoff, fs, 6)
-            filtered_signal = fft_bandpass_filter(signal, low_cutoff, high_cutoff, fs)
+            filtered_signal = butter_bandpass_filter(signal, [low_cutoff, high_cutoff], fs)
 
             database[filename]['signals'][electrode] = filtered_signal
 #plot_database(database, 1)
@@ -401,12 +426,16 @@ for filename, record in database.items():
 
             if was_response_correct:
                 # Find stimuli index
+                margin = 100
                 search_area_start = max(0, i - max_trigger_peak_width // 2)
                 search_area_end = min(i + max_trigger_peak_width // 2, len(trigger_signal))
                 stimuli_index = int(search_area_start + np.argmin(trigger_signal[search_area_start:search_area_end]))
+                if stimuli_index < margin:
+                    i += max_trigger_peak_width
+                    trigger_iter += 1
+                    continue
 
-                # #Plot single triggers
-                # margin = 10
+                # Plot single trigger
                 # plt.figure()
                 # plt.plot(range(len(trigger_signal[stimuli_index-margin:stimuli_index+margin])), raw_trigger_signal[stimuli_index-margin:stimuli_index+margin], 'g-', linewidth=3)
                 # plt.plot(range(len(trigger_signal[stimuli_index-margin:stimuli_index+margin])), trigger_signal[stimuli_index-margin:stimuli_index+margin], 'b-', linewidth=3)
@@ -489,8 +518,8 @@ for filename, record in database.items():
 invert_y_axis = False
 
 # N170 area 140-185ms
-n170_begin = pre_stimuli + time2sample(0.14)
-n170_end = pre_stimuli + time2sample(0.185)
+n170_begin = pre_stimuli + time2sample(0.12)
+n170_end = pre_stimuli + time2sample(0.19)
 
 for electrode in electrodes_to_analyze:
 
@@ -549,7 +578,7 @@ for electrode in electrodes_to_analyze:
     writer.writerow([basename(filename), electrode, vpp_angry, vpp_happy, vpp_neutral, len(chunks_angry), len(chunks_happy), len(chunks_neutral)])
 
     plt.figure()
-    plt.title(suffix + ' - ' + electrode + ' - ' + str(len(chunks_angry)) + '/' + str(len(chunks_happy)) + '/' + str(len(chunks_neutral)) + ' chunks average')
+    plt.title(suffix + ' - ' + electrode + ' - ' + str(len(chunks_angry)) + '/' + str(len(chunks_happy)) + '/' + str(len(chunks_neutral)) + ' - ' + str(len(chunks_angry2)) + '/' + str(len(chunks_happy2)) + '/' + str(len(chunks_neutral2)) +' chunks average')
     plt.plot(np.multiply(np.arange(len(averaged_angry)) - pre_stimuli, 1000 / fs), averaged_angry, color='r', linestyle="dashed")
     plt.plot(np.multiply(np.arange(len(averaged_angry2)) - pre_stimuli, 1000 / fs), averaged_angry2, color='r')
     plt.plot(np.multiply(np.arange(len(averaged_happy)) - pre_stimuli, 1000 / fs), averaged_happy, color='b', linestyle="dashed")
@@ -569,11 +598,6 @@ for electrode in electrodes_to_analyze:
     plt.savefig(figure_file + '.png')
     plt.savefig(figure_file_all + '.png')
     plt.savefig(figure_file_all + '.eps')
-
-    plt.xlim([140, 200])
-    plt.ylim([-7.5, -2.5])
-    plt.savefig(figure_file_all + '_zoom.png')
-    plt.savefig(figure_file_all + '_zoom.eps')
     #plt.show()
 
     # print(electrode)

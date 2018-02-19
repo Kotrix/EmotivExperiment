@@ -29,11 +29,23 @@ slope_width = 7 # in number of samples, controls shift of the stimuli start
 # Valid signal value limits
 chunk_max_peak_to_peak = 70
 peak_filtering = True
-min_peak_score = 2
+min_peak_score = 0
 
-csvfile = open('amplitudes' + ('_common_' if common_avg_ref else '_org_') + suffix + '.csv', 'w', newline='')
-writer = csv.writer(csvfile, delimiter=',', quotechar='|')
-writer.writerow(['amp_angry', 'amp_happy', 'amp_neutral'])
+csvfile = open('latencies' + ('_common_' if common_avg_ref else '_org_') + suffix + '.csv', 'w', newline='')
+latencies_writer = csv.writer(csvfile, delimiter=',', quotechar='|')
+latencies_writer.writerow(['amp_angry', 'amp_neutral'])
+
+csvfile = open('n170_amplitudes' + ('_common_' if common_avg_ref else '_org_') + suffix + '.csv', 'w', newline='')
+n170_amp_writer = csv.writer(csvfile, delimiter=',', quotechar='|')
+n170_amp_writer.writerow(['amp_angry', 'amp_neutral'])
+
+csvfile = open('epn_amplitudes' + ('_common_' if common_avg_ref else '_org_') + suffix + '.csv', 'w', newline='')
+epn_amp_writer = csv.writer(csvfile, delimiter=',', quotechar='|')
+epn_amp_writer.writerow(['amp_angry', 'amp_neutral'])
+
+csvfile = open('resps' + ('_common_' if common_avg_ref else '_org_') + suffix + '.csv', 'w', newline='')
+resps_writer = csv.writer(csvfile, delimiter=',', quotechar='|')
+resps_writer.writerow(['amp_angry', 'amp_neutral'])
 
 
 ######### READ SIGNALS FROM DISK ############################
@@ -49,7 +61,7 @@ if common_avg_ref:
             mean = np.zeros(len(record['signals'][triggering_electrode]))
             count = 0
             for electrode, signal in record['signals'].items():
-                if electrode in ref_electrodes and electrode != e:
+                if electrode in ref_electrodes:
                     mean += signal
                     count += 1
             mean /= count
@@ -158,21 +170,27 @@ def forward_diff(signal, order):
 extracted_chunks_angry = OrderedDict()
 extracted_chunks_happy = OrderedDict()
 extracted_chunks_neutral = OrderedDict()
+wrong_range = OrderedDict()
+wrong_peak = OrderedDict()
 for e in electrodes_to_analyze:
     extracted_chunks_angry[e] = list()
     extracted_chunks_happy[e] = list()
     extracted_chunks_neutral[e] = list()
+    wrong_range[e] = 0
+    wrong_peak[e] = 0
 
 
-wrong_response = 0
-wrong_range = 0
-wrong_peak = 0
+wrong_response_emo = 0
+wrong_response_neutral = 0
+all_responses = 0
+answer_time_emo = 0
+answer_time_emos = []
+resp_emo = 0
+answer_time_neutral = 0
+resp_neutral = 0
+answer_time_neutrals = []
 
 for filename, record in database.items():
-
-    for r in record['responses']:
-        if r[0] is False:
-            wrong_response += 1
 
     # Compute forward difference of triggering electrode signal and find its minima
     raw_trigger_signal = np.array(record['signals'][triggering_electrode])
@@ -197,11 +215,31 @@ for filename, record in database.items():
     while i < len(trigger_signal):
         if trigger_signal[i] < trigger_threshold:
 
+            if all_responses >= 5120:
+                break
+            all_responses += 1
+
             try:
                 was_response_correct = record['responses'][trigger_iter][0]
             except:
+                all_responses -= 1
                 i += 1
                 continue
+
+            face_id = record['order'][trigger_iter][0]
+
+            event_timestamp = record['responses'][trigger_iter][1]
+            resp_time = record['order'][trigger_iter][1]
+            answer_time = event_timestamp - resp_time
+
+            if is_face_emotional(face_id):
+                answer_time_emos.append(answer_time)
+                answer_time_emo += answer_time
+                resp_emo += 1
+            else:
+                answer_time_neutrals.append(answer_time)
+                answer_time_neutral += answer_time
+                resp_neutral += 1
 
             if was_response_correct:
                 # Find stimuli index
@@ -212,6 +250,7 @@ for filename, record in database.items():
                 if stimuli_index < margin:
                     i += max_trigger_peak_width
                     trigger_iter += 1
+                    all_responses -= 1
                     continue
 
                 #Plot single triggers
@@ -232,9 +271,10 @@ for filename, record in database.items():
 
                 # Save chunk
                 for electrode, signal in record['signals'].items():
+                    if stimuli_index - pre_stimuli < 0 or stimuli_index + post_stimuli > len(signal):
+                        all_responses -= 1
+                        break
                     if electrode in electrodes_to_analyze:
-                        if stimuli_index - pre_stimuli < 0 or stimuli_index + post_stimuli > len(signal):
-                            continue
                         chunk = signal[stimuli_index - pre_stimuli:stimuli_index + post_stimuli]
                         chunk_max = np.max(chunk)
                         chunk_min = np.min(chunk)
@@ -271,7 +311,6 @@ for filename, record in database.items():
 
                         if chunk_peak_to_peak <= chunk_max_peak_to_peak and peak_score >= min_peak_score:
                             try:
-                                face_id = record['order'][trigger_iter][0]
                                 if len(record['order']) > 0 and is_face_emotional(face_id):
                                     extracted_chunks_angry[electrode].append(chunk)
                                 # elif len(record['order']) > 0 and is_face_happy(face_id):
@@ -282,9 +321,15 @@ for filename, record in database.items():
                                 pass
 
                         if chunk_peak_to_peak > chunk_max_peak_to_peak:
-                            wrong_range += 1
+                            wrong_range[electrode] += 1
                         elif peak_score < min_peak_score:
-                            wrong_peak += 1
+                            wrong_peak[electrode] += 1
+            else:
+                face_id = record['order'][trigger_iter][0]
+                if is_face_emotional(face_id):
+                    wrong_response_emo += 1
+                else:
+                    wrong_response_neutral +=1
 
             i += max_trigger_peak_width
             trigger_iter += 1
@@ -297,20 +342,36 @@ for filename, record in database.items():
     # v = np.std(diff)
     print(filename)
 
-print(wrong_response, wrong_range, wrong_peak)
+print(wrong_response_emo, wrong_response_neutral, all_responses, 100 * wrong_response_emo / all_responses, 100 * wrong_response_neutral / all_responses, 100 * (wrong_response_emo+wrong_response_neutral) / all_responses)
+print(wrong_range)
+print(wrong_peak)
+print(1000*answer_time_emo/resp_emo, 1000*answer_time_neutral/resp_neutral, resp_emo, resp_neutral)
 
 ######### AVERAGE CHUNKS ##################
 invert_y_axis = False
 
 # N170 area 140-185ms
-n170_begin = pre_stimuli + time2sample(0.14)
-n170_end = pre_stimuli + time2sample(0.185)
+n170_begin = pre_stimuli + time2sample(0.10)
+n170_end = pre_stimuli + time2sample(0.20) + 1
+
+epn_begin = pre_stimuli + time2sample(0.25)
+epn_end = pre_stimuli + time2sample(0.35) + 1
+
+lats_angry = []
+lats_neutral = []
+
+n170_amps_angry = []
+n170_amps_neutral = []
+
+epn_amps_angry = []
+epn_amps_neutral = []
+
 
 for electrode in electrodes_to_analyze:
 
     #TODO: use dictionary for angry/happy/neutral
     chunks_angry = extracted_chunks_angry[electrode]
-    chunks_angry = [x - 0.5 for x in chunks_angry]
+    chunks_angry = [x - 0.4 for x in chunks_angry]
     chunks_happy = extracted_chunks_happy[electrode]
     chunks_neutral = extracted_chunks_neutral[electrode]
 
@@ -348,41 +409,32 @@ for electrode in electrodes_to_analyze:
     #         plt.title(np.dot(chunk, base))
     #         plt.show()
 
+    latencies_writer.writerow(['c']*20)
+    latencies_writer.writerow([electrode])
+    for i in range(min(num_angry, num_neutral)):
+        amp_angry = (np.argmin(chunks_angry[i][n170_begin:n170_end]) + n170_begin) / fs - 0.1
+        amp_neutral = (np.argmin(chunks_neutral[i][n170_begin:n170_end]) + n170_begin) / fs - 0.1
+        lats_angry.append(amp_angry)
+        lats_neutral.append(amp_neutral)
+        latencies_writer.writerow([amp_angry, amp_neutral])
 
-    # amps_angry = []
-    # amps_happy = []
-    # amps_neutral = []
-    # for i in range(min(num_angry, num_happy, num_neutral)):
-    #     amp_angry = np.min(chunks_angry[i][n170_begin:n170_end] - np.mean(chunks_angry[i][:pre_stimuli + 1]))
-    #     amp_happy = np.min(chunks_happy[i][n170_begin:n170_end] - np.mean(chunks_happy[i][:pre_stimuli + 1]))
-    #     amp_neutral = np.min(chunks_neutral[i][n170_begin:n170_end] - np.mean(chunks_neutral[i][:pre_stimuli + 1]))
-    #     amps_angry.append(amp_angry)
-    #     amps_happy.append(amp_happy)
-    #     amps_neutral.append(amp_neutral)
-    #     writer.writerow([amp_angry, amp_happy, amp_neutral])
+    n170_amp_writer.writerow(['c']*20)
+    n170_amp_writer.writerow([electrode])
+    for i in range(min(num_angry, num_neutral)):
+        amp_angry = np.min(chunks_angry[i][n170_begin:n170_end])
+        amp_neutral = np.min(chunks_neutral[i][n170_begin:n170_end])
+        n170_amps_angry.append(amp_angry)
+        n170_amps_neutral.append(amp_neutral)
+        n170_amp_writer.writerow([amp_angry, amp_neutral])
 
-    # Statistical analysis
-    # from scipy import stats
-    #
-    # alpha = 0.05
-    # if stats.shapiro(amps_angry)[1] > alpha:
-    #     if stats.shapiro(amps_happy)[1] > alpha:
-    #         f_val, p_val = stats.f_oneway(amps_angry, amps_happy)
-    #         if p_val < alpha:
-    #             print(electrode, 'A-H', f_val, p_val, np.mean(amps_angry), np.mean(amps_happy))
-    #     else:
-    #         f_val, p_val = stats.wilcoxon(amps_angry, amps_happy)
-    #         if p_val < alpha:
-    #             print(electrode, 'A-H', f_val, p_val, np.mean(amps_angry), np.mean(amps_happy))
-    #
-    #     if stats.shapiro(amps_neutral)[1] > alpha:
-    #         f_val, p_val = stats.f_oneway(amps_angry, amps_neutral)
-    #         if p_val < alpha:
-    #             print(electrode, 'A-H', f_val, p_val, np.mean(amps_angry), np.mean(amps_neutral))
-    #     else:
-    #         f_val, p_val = stats.wilcoxon(amps_angry, amps_neutral)
-    #         if p_val < alpha:
-    #             print(electrode, 'A-H', f_val, p_val, np.mean(amps_angry), np.mean(amps_neutral))
+    epn_amp_writer.writerow(['c']*20)
+    epn_amp_writer.writerow([electrode])
+    for i in range(min(num_angry, num_neutral)):
+        amp_angry = np.mean(chunks_angry[i][epn_begin:epn_end])
+        amp_neutral = np.mean(chunks_neutral[i][epn_begin:epn_end])
+        epn_amps_angry.append(amp_angry)
+        epn_amps_neutral.append(amp_neutral)
+        epn_amp_writer.writerow([amp_angry, amp_neutral])
 
     plt.figure()
     #plt.title(electrode + ' - ' + str(num_angry) + '/' + str(num_happy) + '/' + str(num_neutral) + ' chunks average')
@@ -395,9 +447,11 @@ for electrode in electrodes_to_analyze:
     plt.axhline(0, color='k', linestyle='dashed')
     plt.xlabel('Time [ms]')
     plt.ylabel('uV')
+    plt.ylim([-8, 10.5])
     plt.legend(handles=[emotion_plot,neutral_plot],
                labels=['Emotional', 'Neutral'], fontsize=12)
-    plt.yticks(np.arange(-10.0, 10.1, 4))
+    plt.yticks(np.arange(-8.0, 10.1, 2))
+    plt.axvspan(0.25, 0.35, facecolor='#F0F0F0', edgecolor='#F0F0F0', alpha=0.5)
     if invert_y_axis:
         plt.gca().invert_yaxis()
     figure_file = "figures\\" + basename(filename) + "\\erp\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on*low_cutoff)) + '_' + str(int(filter_on*high_cutoff)) + 'Hz_' + suffix
@@ -411,4 +465,24 @@ for electrode in electrodes_to_analyze:
     # print(len(chunks_emo), '\t', num_neutral)
     # print(averaged_emo[n170_begin:n170_end].min(), '\t', averaged_neutral[n170_begin:n170_end].min())
 
-print('\n')
+from scipy import stats
+
+f_val, p_val = stats.ttest_rel(lats_angry, lats_neutral)
+print('latencies', f_val, p_val, np.mean(lats_angry), np.mean(lats_neutral))
+
+f_val, p_val = stats.ttest_rel(n170_amps_angry, n170_amps_neutral)
+print('n170', f_val, p_val, np.mean(n170_amps_angry), np.mean(n170_amps_neutral))
+
+f_val, p_val = stats.ttest_rel(epn_amps_angry, epn_amps_neutral)
+print('epn', f_val, p_val, np.mean(epn_amps_angry), np.mean(epn_amps_neutral))
+
+emo = []
+neut = []
+for i in range(min(len(answer_time_emos), len(answer_time_neutrals))):
+    amp_angry = answer_time_emos[i]
+    amp_neutral = answer_time_neutrals[i]
+    emo.append(amp_angry)
+    neut.append(amp_neutral)
+    resps_writer.writerow([amp_angry, amp_neutral])
+f_val, p_val = stats.ttest_rel(emo, neut)
+print('epn', f_val, p_val, np.mean(emo), np.mean(neut))
