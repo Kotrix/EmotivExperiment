@@ -57,7 +57,7 @@ if common_avg_ref:
     common_database = database.copy()
     for filename, record in database.items():
         for e in electrodes_to_analyze:
-            # Find average signal over all ref_electrodes except one being re-referenced
+            # Find average signal over all ref_electrodes
             mean = np.zeros(len(record['signals'][triggering_electrode]))
             count = 0
             for electrode, signal in record['signals'].items():
@@ -88,6 +88,7 @@ for filename, record in database.items():
 #plot_database(database, 1)
 
 
+# FFT to visualize filtering results
 # for filename, record in database.items():
 #     for electrode, signal in record['signals'].items():
 #         if electrode in electrodes_to_analyze:
@@ -139,6 +140,7 @@ else:
 
 ######### EXTRACT CHUNKS OF SIGNAL AFTER STIMULI ##################
 
+# face IDs based on eperimental setup in OpenViBE
 def is_face_angry(face_id):
     labels = {1, 4, 7, 10, 13, 16, 20, 22}
     for i in labels:
@@ -158,7 +160,7 @@ def is_face_emotional(face_id):
         return True
     return False
 
-
+# my own method, there could be something more universal for finding peak
 def forward_diff(signal, order):
     new_signal = np.zeros_like(signal)
     for n in range(len(signal) - order):
@@ -179,7 +181,7 @@ for e in electrodes_to_analyze:
     wrong_range[e] = 0
     wrong_peak[e] = 0
 
-
+# Just accumulators for statistics
 wrong_response_emo = 0
 wrong_response_neutral = 0
 all_responses = 0
@@ -371,7 +373,6 @@ for electrode in electrodes_to_analyze:
 
     #TODO: use dictionary for angry/happy/neutral
     chunks_angry = extracted_chunks_angry[electrode]
-    chunks_angry = [x - 0.4 for x in chunks_angry]
     chunks_happy = extracted_chunks_happy[electrode]
     chunks_neutral = extracted_chunks_neutral[electrode]
 
@@ -382,10 +383,6 @@ for electrode in electrodes_to_analyze:
     if num_angry == 0 or num_neutral == 0:
         continue
 
-    np.random.seed(1992)
-    np.random.shuffle(chunks_angry)
-    np.random.shuffle(chunks_neutral)
-
     # Grand-average over all chunks
     averaged_angry = np.mean(chunks_angry, axis=0)
     averaged_neutral = np.mean(chunks_neutral, axis=0)
@@ -395,19 +392,6 @@ for electrode in electrodes_to_analyze:
     # change voltage scale as difference from baseline
     averaged_angry -= baseline
     averaged_neutral -= baseline
-
-    # bad_chunks = []
-    # for i, ch in enumerate(chunks_angry):
-    #     base = normalize(averaged_angry[n170_begin:n170_end])
-    #     chunk = normalize(ch[n170_begin:n170_end] - baseline)
-    #     dot = np.dot(chunk, base)
-    #     if dot < 2:
-    #         bad_chunks.append(i)
-    #         plt.figure()
-    #         plt.plot(base)
-    #         plt.plot(chunk)
-    #         plt.title(np.dot(chunk, base))
-    #         plt.show()
 
     latencies_writer.writerow(['c']*20)
     latencies_writer.writerow([electrode])
@@ -464,25 +448,3 @@ for electrode in electrodes_to_analyze:
     # print(electrode)
     # print(len(chunks_emo), '\t', num_neutral)
     # print(averaged_emo[n170_begin:n170_end].min(), '\t', averaged_neutral[n170_begin:n170_end].min())
-
-from scipy import stats
-
-f_val, p_val = stats.ttest_rel(lats_angry, lats_neutral)
-print('latencies', f_val, p_val, np.mean(lats_angry), np.mean(lats_neutral))
-
-f_val, p_val = stats.ttest_rel(n170_amps_angry, n170_amps_neutral)
-print('n170', f_val, p_val, np.mean(n170_amps_angry), np.mean(n170_amps_neutral))
-
-f_val, p_val = stats.ttest_rel(epn_amps_angry, epn_amps_neutral)
-print('epn', f_val, p_val, np.mean(epn_amps_angry), np.mean(epn_amps_neutral))
-
-emo = []
-neut = []
-for i in range(min(len(answer_time_emos), len(answer_time_neutrals))):
-    amp_angry = answer_time_emos[i]
-    amp_neutral = answer_time_neutrals[i]
-    emo.append(amp_angry)
-    neut.append(amp_neutral)
-    resps_writer.writerow([amp_angry, amp_neutral])
-f_val, p_val = stats.ttest_rel(emo, neut)
-print('epn', f_val, p_val, np.mean(emo), np.mean(neut))
