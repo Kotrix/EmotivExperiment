@@ -35,7 +35,7 @@ csv_logs = ['latencies', 'n170_amplitudes', 'epn_amplitudes', 'resps']
 csv_writers = dict()
 for name in csv_logs:
     csvfile = open(name + ('_common_' if common_avg_ref else '_org_') + suffix + '.csv', 'w', newline='')
-    csv_writers[name] ==  csv.writer(csvfile, delimiter=',', quotechar='|')
+    csv_writers[name] = csv.writer(csvfile, delimiter=',', quotechar='|')
     csv_writers[name].writerow(['emotional', 'neutral'])
 
 
@@ -276,7 +276,7 @@ for filename, record in database.items():
                             plt.xlabel('Time [s]')
                             plt.ylabel('uV')
                             plt.grid()
-                            plt.savefig("figures\\" + basename(filename) + "\\chunks\\"+electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png')
+                            plt.savefig(figures_dir + "\\" + basename(filename) + "\\chunks\\"+electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png')
                             plt.close()
 
                         if chunk_peak_to_peak <= chunk_max_peak_to_peak and peak_score >= min_peak_score:
@@ -402,8 +402,8 @@ for electrode in electrodes_to_analyze:
     plt.axvspan(0.25, 0.35, facecolor='#F0F0F0', edgecolor='#F0F0F0', alpha=0.5)
     if invert_y_axis:
         plt.gca().invert_yaxis()
-    figure_file = "figures\\" + basename(filename) + "\\erp\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on*low_cutoff)) + '_' + str(int(filter_on*high_cutoff)) + 'Hz_' + suffix
-    figure_file_all = "figures\\all\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on*low_cutoff)) + '_' + str(int(filter_on * high_cutoff)) + 'Hz_' + suffix
+    figure_file = figures_dir + "\\" + basename(filename) + "\\erp\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on*low_cutoff)) + '_' + str(int(filter_on*high_cutoff)) + 'Hz_' + suffix
+    figure_file_all = figures_dir + "\\all\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on*low_cutoff)) + '_' + str(int(filter_on * high_cutoff)) + 'Hz_' + suffix
     plt.savefig(figure_file + '.png')
     plt.savefig(figure_file_all + '.png')
     plt.savefig(figure_file_all + '.eps')

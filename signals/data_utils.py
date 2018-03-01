@@ -5,7 +5,24 @@ import csv
 import os
 import numpy as np
 
+def prepare_dirs(*args):
+    """
+    Create directories if not exist.
+    :param args: directory names or lists of directory names.
+    :return: None
+    """
+    for d in args:
+        if type(d) == list:
+            prepare_dirs(*d)
+            continue
+        if not os.path.isdir(d):
+            os.makedirs(d)
+
+figures_dir = 'figures'
+prepare_dirs(figures_dir)
+prepare_dirs(os.path.join(figures_dir, 'all'))
 fs = 128 # EPOC sampling freq, Hz
+
 def time2sample(time):
     """
     :param time: in seconds
@@ -44,11 +61,10 @@ def read_openvibe_csv(filename, electrodes):
     """
 
     # Prepare directory for results
-    new_dir = 'figures\\' + basename(filename) + '\\'
-    if not os.path.isdir(new_dir):
-        os.makedirs(new_dir)
-        os.makedirs(new_dir + 'chunks')
-        os.makedirs(new_dir + 'erp')
+    new_dir = os.path.join(figures_dir, basename(filename))
+    prepare_dirs(new_dir)
+    prepare_dirs(new_dir + 'chunks')
+    prepare_dirs(new_dir + 'erp')
 
     # Init containers
     timestamps = list()
