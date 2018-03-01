@@ -276,9 +276,10 @@ for filename, record in database.items():
                             plt.xlabel('Time [s]')
                             plt.ylabel('uV')
                             plt.grid()
-                            plt.savefig(figures_dir + "\\" + basename(filename) + "\\chunks\\"+electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png')
+                            plt.savefig(os.path.join(figures_dir, basename(filename), 'chunks', electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png'))
                             plt.close()
 
+                        # Collect correct chunks
                         if chunk_peak_to_peak <= chunk_max_peak_to_peak and peak_score >= min_peak_score:
                             try:
                                 if len(record['order']) > 0 and is_face_emotional(face_id):
@@ -395,16 +396,15 @@ for electrode in electrodes_to_analyze:
     plt.axhline(0, color='k', linestyle='dashed')
     plt.xlabel('Time [ms]')
     plt.ylabel('uV')
-    plt.ylim([-8, 10.5])
+    #plt.ylim([-8, 10.5])
+    #plt.yticks(np.arange(-8.0, 10.1, 2))
     plt.legend(handles=[emotion_plot,neutral_plot],
                labels=['Emotional', 'Neutral'], fontsize=12)
-    plt.yticks(np.arange(-8.0, 10.1, 2))
     plt.axvspan(0.25, 0.35, facecolor='#F0F0F0', edgecolor='#F0F0F0', alpha=0.5)
     if invert_y_axis:
         plt.gca().invert_yaxis()
-    figure_file = figures_dir + "\\" + basename(filename) + "\\erp\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on*low_cutoff)) + '_' + str(int(filter_on*high_cutoff)) + 'Hz_' + suffix
-    figure_file_all = figures_dir + "\\all\\" + electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on*low_cutoff)) + '_' + str(int(filter_on * high_cutoff)) + 'Hz_' + suffix
-    plt.savefig(figure_file + '.png')
+
+    figure_file_all = os.path.join(figures_dir, 'all', electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on * low_cutoff)) + '_' + str(int(filter_on * high_cutoff)) + 'Hz_' + suffix)
     plt.savefig(figure_file_all + '.png')
-    plt.savefig(figure_file_all + '.eps')
+    #plt.savefig(figure_file_all + '.eps')
     #plt.show()
