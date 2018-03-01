@@ -1,2 +1,3 @@
-# WronkaExperiment
-OpenVibe version of experiment from https://www.ncbi.nlm.nih.gov/pubmed/21332489
+# EmotivExperiment
+OpenVibe experiment for ERP detection
+Scripts for ERP calculation
