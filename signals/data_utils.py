@@ -13,6 +13,24 @@ def time2sample(time):
     """
     return int(round(time * fs))
 
+def sample2time(sample):
+    """
+    :param sample: number of samples
+    :return: time of given sample
+    """
+    return sample / fs
+
+def normalize(signal):
+    mean = np.mean(signal)
+    std = np.std(signal)
+    return (signal - mean) / std
+
+def scale(signal, low, high):
+    min = np.min(signal)
+    max = np.max(signal)
+    rng = max - min
+    return high - (((high - low) * (max - signal)) / rng)
+
 def basename(filename):
     return os.path.basename(filename)[:-4]
 
@@ -134,8 +152,8 @@ def plot_database(database, file=None):
             plt.figure()
             plt.title(electrode + ' - ' + filename)
             plt.plot(timestamps, signal, 'g-', linewidth=1)
-            # for id, time in record['order']:
-            #     plt.axvline(time, linestyle='dashed', label=str(id))
+            for id, time in record['order']:
+                plt.axvline(time, linestyle='dashed', label=str(id))
             plt.xlabel('Time [s]')
             plt.ylabel('uV')
             #plt.grid()
