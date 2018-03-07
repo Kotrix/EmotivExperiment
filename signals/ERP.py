@@ -2,7 +2,8 @@ from data_utils import *
 import scipy
 
 ############# CONFIG ###########################
-database_regex = 'csv/*/record-F*.csv'
+person_id = -1
+database_regex = 'csv/'+ str(person_id if person_id > 0 else '*') + '/record-F*.csv'
 suffix='ALL'
 
 triggering_electrode = 'F7'
@@ -42,6 +43,7 @@ for name in csv_logs:
 ######### READ SIGNALS FROM DISK ############################
 
 database = read_openvibe_csv_database(database_regex, all_electrodes)
+#plot_database(database, 1)
 
 if common_avg_ref:
     ######## COMMON AVERAGE REFERENCE ###########################
@@ -360,7 +362,6 @@ for electrode in electrodes_to_analyze:
 
     # Fill csv logs for statistical analysis
     # ANOVAs calculated using: http://vassarstats.net/anova1u.html
-    csv_logs = ['latencies', 'n170_amplitudes', 'epn_amplitudes', 'resps']
     for i in range(min(num_emo, num_neutral)):
         amp_emo = (np.argmin(chunks_emo[i][n170_begin:n170_end]) + n170_begin)
         amp_neutral = (np.argmin(chunks_neutral[i][n170_begin:n170_end]) + n170_begin)
