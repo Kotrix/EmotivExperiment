@@ -19,7 +19,7 @@ filter_on = True
 low_cutoff = 0.5
 high_cutoff = 24 # desired cutoff frequency of the filter, Hz (0 to disable filtering)
 
-# Define pre and post stimuli period of chunk (in seconds)
+# Define pre and post stimuli period of epoch (in seconds)
 pre_stimuli = time2sample(0.1)
 post_stimuli = time2sample(0.5)
 
@@ -28,7 +28,7 @@ max_trigger_peak_width = time2sample(3) # in seconds
 slope_width = 7 # in number of samples, controls shift of the stimuli start
 
 # Valid signal value limits
-chunk_max_peak_to_peak = 70
+epoch_max_peak_to_peak = 70
 peak_filtering = True
 min_peak_score = 0
 
@@ -110,7 +110,7 @@ else:
     for filename in corrupted_files:
         database.pop(filename, None)
 
-######### EXTRACT CHUNKS OF SIGNAL AFTER STIMULI ##################
+######### EXTRACT EPOCHS OF SIGNAL AFTER STIMULI ##################
 
 # face IDs based on eperimental setup in OpenViBE
 def is_face_angry(face_id):
@@ -140,14 +140,14 @@ def forward_diff(signal, order):
 
     return new_signal
 
-# Init container for ERP chunks
-extracted_chunks_emo = OrderedDict()
-extracted_chunks_neutral = OrderedDict()
+# Init container for ERP epochs
+extracted_epochs_emo = OrderedDict()
+extracted_epochs_neutral = OrderedDict()
 wrong_range = OrderedDict()
 wrong_peak = OrderedDict()
 for e in electrodes_to_analyze:
-    extracted_chunks_emo[e] = list()
-    extracted_chunks_neutral[e] = list()
+    extracted_epochs_emo[e] = list()
+    extracted_epochs_neutral[e] = list()
     wrong_range[e] = 0
     wrong_peak[e] = 0
 
@@ -179,7 +179,7 @@ for filename, record in database.items():
     # plt.grid()
     # plt.show()
 
-    # Find next stimuli start and save related chunk for every electrode
+    # Find next stimuli start and save related epoch for every electrode
     i = 0
     trigger_iter = 0
     true_timestamps = list()
@@ -241,57 +241,57 @@ for filename, record in database.items():
                 except:
                     pass
 
-                # Save chunk
+                # Save epoch
                 for electrode, signal in record['signals'].items():
                     if stimuli_index - pre_stimuli < 0 or stimuli_index + post_stimuli > len(signal):
                         all_responses -= 1
                         break
                     if electrode in electrodes_to_analyze:
-                        chunk = signal[stimuli_index - pre_stimuli:stimuli_index + post_stimuli]
-                        chunk_max = np.max(chunk)
-                        chunk_min = np.min(chunk)
-                        chunk_peak_to_peak = chunk_max - chunk_min
+                        epoch = signal[stimuli_index - pre_stimuli:stimuli_index + post_stimuli]
+                        epoch_max = np.max(epoch)
+                        epoch_min = np.min(epoch)
+                        epoch_peak_to_peak = epoch_max - epoch_min
 
                         if peak_filtering:
                             def inv_ric(points, a):
                                 return -scipy.signal.ricker(points, a)
 
                             widths = 0.5 * np.arange(1, 10)
-                            cwtmatr = scipy.signal.cwt(chunk, inv_ric, widths)
+                            cwtmatr = scipy.signal.cwt(epoch, inv_ric, widths)
                             peak_score = np.mean(cwtmatr[:, pre_stimuli + time2sample(0.17)])
 
                             # plt.figure()
                             # plt.title(peak_score)
-                            # plt.imshow(cwtmatr, extent=[-0.2, 1, chunk.min(), chunk.max()], cmap='PRGn', aspect='auto',
+                            # plt.imshow(cwtmatr, extent=[-0.2, 1, epoch.min(), epoch.max()], cmap='PRGn', aspect='auto',
                             #            vmax=abs(cwtmatr).max(), vmin=-abs(cwtmatr).max())
                             # plt.show()
                         else:
                             peak_score = min_peak_score + 1
 
                         if trigger_iter < 0:
-                            # Draw and save single chunks
+                            # Draw and save single epochs
                             plt.figure()
                             plt.title(electrode + (', peak score: ' + str(peak_score)) if peak_filtering else '')
-                            plt.plot(((np.array(range(len(chunk)))) - pre_stimuli)/fs, chunk, 'g-', linewidth=1)
+                            plt.plot(((np.array(range(len(epoch)))) - pre_stimuli) / fs, epoch, 'g-', linewidth=1)
                             plt.axvline(0, color='k', linestyle='dashed')
                             plt.axvline(0.17, color='b', linestyle='dashed')
                             plt.xlabel('Time [s]')
                             plt.ylabel('uV')
                             plt.grid()
-                            plt.savefig(os.path.join(figures_dir, basename(filename), 'chunks', electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png'))
+                            plt.savefig(os.path.join(figures_dir, basename(filename), 'epochs', electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png'))
                             plt.close()
 
-                        # Collect correct chunks
-                        if chunk_peak_to_peak <= chunk_max_peak_to_peak and peak_score >= min_peak_score:
+                        # Collect correct epochs
+                        if epoch_peak_to_peak <= epoch_max_peak_to_peak and peak_score >= min_peak_score:
                             try:
                                 if len(record['order']) > 0 and is_face_emotional(face_id):
-                                    extracted_chunks_emo[electrode].append(chunk)
+                                    extracted_epochs_emo[electrode].append(epoch)
                                 else:
-                                    extracted_chunks_neutral[electrode].append(chunk)
+                                    extracted_epochs_neutral[electrode].append(epoch)
                             except:
                                 pass
 
-                        if chunk_peak_to_peak > chunk_max_peak_to_peak:
+                        if epoch_peak_to_peak > epoch_max_peak_to_peak:
                             wrong_range[electrode] += 1
                         elif peak_score < min_peak_score:
                             wrong_peak[electrode] += 1
@@ -319,7 +319,7 @@ print(wrong_range)
 print(wrong_peak)
 print(1000*answer_time_emo/resp_emo, 1000*answer_time_neutral/resp_neutral, resp_emo, resp_neutral)
 
-######### AVERAGE CHUNKS ##################
+######### AVERAGE EPOCHS ##################
 invert_y_axis = False
 
 # N170 area 140-185ms
@@ -342,19 +342,19 @@ epn_amps_neutral = []
 for electrode in electrodes_to_analyze:
 
     #TODO: use dictionary
-    chunks_emo = extracted_chunks_emo[electrode]
-    chunks_neutral = extracted_chunks_neutral[electrode]
+    epochs_emo = extracted_epochs_emo[electrode]
+    epochs_neutral = extracted_epochs_neutral[electrode]
 
-    num_emo = len(chunks_emo)
-    num_neutral = len(chunks_neutral)
+    num_emo = len(epochs_emo)
+    num_neutral = len(epochs_neutral)
     print(num_emo, num_neutral)
 
     if num_emo == 0 or num_neutral == 0:
         continue
 
-    # Grand-average over all chunks
-    averaged_emo = np.mean(chunks_emo, axis=0)
-    averaged_neutral = np.mean(chunks_neutral, axis=0)
+    # Grand-average over all epochs
+    averaged_emo = np.mean(epochs_emo, axis=0)
+    averaged_neutral = np.mean(epochs_neutral, axis=0)
 
     # change voltage scale as difference from baseline
     averaged_emo -= np.mean(averaged_emo[:pre_stimuli + 1])
@@ -363,8 +363,8 @@ for electrode in electrodes_to_analyze:
     # Fill csv logs for statistical analysis
     # ANOVAs calculated using: http://vassarstats.net/anova1u.html
     for i in range(min(num_emo, num_neutral)):
-        amp_emo = (np.argmin(chunks_emo[i][n170_begin:n170_end]) + n170_begin)
-        amp_neutral = (np.argmin(chunks_neutral[i][n170_begin:n170_end]) + n170_begin)
+        amp_emo = (np.argmin(epochs_emo[i][n170_begin:n170_end]) + n170_begin)
+        amp_neutral = (np.argmin(epochs_neutral[i][n170_begin:n170_end]) + n170_begin)
         lats_emo.append(amp_emo)
         lats_neutral.append(amp_neutral)
         csv_writers['latencies'].writerow([amp_emo, amp_neutral])
@@ -372,8 +372,8 @@ for electrode in electrodes_to_analyze:
     csv_writers['n170_amplitudes'].writerow(['c']*20)
     csv_writers['n170_amplitudes'].writerow([electrode])
     for i in range(min(num_emo, num_neutral)):
-        amp_emo = np.min(chunks_emo[i][n170_begin:n170_end])
-        amp_neutral = np.min(chunks_neutral[i][n170_begin:n170_end])
+        amp_emo = np.min(epochs_emo[i][n170_begin:n170_end])
+        amp_neutral = np.min(epochs_neutral[i][n170_begin:n170_end])
         n170_amps_emo.append(amp_emo)
         n170_amps_neutral.append(amp_neutral)
         csv_writers['n170_amplitudes'].writerow([amp_emo, amp_neutral])
@@ -381,8 +381,8 @@ for electrode in electrodes_to_analyze:
     csv_writers['epn_amplitudes'].writerow(['c'] * 20)
     csv_writers['epn_amplitudes'].writerow([electrode])
     for i in range(min(num_emo, num_neutral)):
-        amp_emo = np.mean(chunks_emo[i][epn_begin:epn_end])
-        amp_neutral = np.mean(chunks_neutral[i][epn_begin:epn_end])
+        amp_emo = np.mean(epochs_emo[i][epn_begin:epn_end])
+        amp_neutral = np.mean(epochs_neutral[i][epn_begin:epn_end])
         epn_amps_emo.append(amp_emo)
         epn_amps_neutral.append(amp_neutral)
         csv_writers['epn_amplitudes'].writerow([amp_emo, amp_neutral])

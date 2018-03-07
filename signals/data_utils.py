@@ -63,7 +63,7 @@ def read_openvibe_csv(filename, electrodes):
     # Prepare directory for results
     new_dir = os.path.join(figures_dir, basename(filename))
     prepare_dirs(new_dir)
-    prepare_dirs(os.path.join(new_dir, 'chunks'))
+    prepare_dirs(os.path.join(new_dir, 'epochs'))
     prepare_dirs(os.path.join(new_dir, 'erp'))
 
     # Init containers
