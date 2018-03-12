@@ -256,14 +256,19 @@ for filename, record in database.items():
                             def inv_ric(points, a):
                                 return -scipy.signal.ricker(points, a)
 
-                            widths = 0.5 * np.arange(1, 10)
+                            widths = 0.5 * np.arange(1, 11)
                             cwtmatr = scipy.signal.cwt(epoch, inv_ric, widths)
                             peak_score = np.mean(cwtmatr[:, pre_stimuli + time2sample(0.17)])
 
                             # plt.figure()
-                            # plt.title(peak_score)
-                            # plt.imshow(cwtmatr, extent=[-0.2, 1, epoch.min(), epoch.max()], cmap='PRGn', aspect='auto',
+                            # plt.title('Peak score: ' + str(peak_score))
+                            # plt.imshow(cwtmatr, extent=[-100, 500, epoch.min(), epoch.max()], cmap='coolwarm', aspect='auto',
                             #            vmax=abs(cwtmatr).max(), vmin=-abs(cwtmatr).max())
+                            # plt.plot(
+                            #     np.multiply(np.arange(len(epoch)) - pre_stimuli, 1000 / fs),
+                            #     epoch, linewidth=2)
+                            # plt.axvline(165, color='k', linestyle='dashed')
+                            # plt.xlim([-100, 500])
                             # plt.show()
                         else:
                             peak_score = min_peak_score + 1
