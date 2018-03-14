@@ -25,7 +25,7 @@ post_stimuli = time2sample(0.5)
 
 # Define threshold for trigger signal
 max_trigger_peak_width = time2sample(3) # in seconds
-slope_width = 7 # in number of samples, controls shift of the stimuli start
+slope_width = 27 # in number of samples, controls shift of the stimuli start
 
 # Valid signal value limits
 epoch_max_peak_to_peak = 70
@@ -136,7 +136,7 @@ def is_face_emotional(face_id):
 def forward_diff(signal, order):
     new_signal = np.zeros_like(signal)
     for n in range(len(signal) - order):
-        new_signal[n] = np.sum(np.diff(signal[n:(n + order)]))
+        new_signal[n] = np.mean(signal[n:(n + order)])
 
     return new_signal
 
@@ -167,7 +167,8 @@ for filename, record in database.items():
     # Compute forward difference of triggering electrode signal and find its minima
     raw_trigger_signal = np.array(record['signals'][triggering_electrode])
     trigger_signal = forward_diff(raw_trigger_signal, slope_width)
-    trigger_threshold = (np.mean(np.sort(trigger_signal)[:len(record['responses'])]) + np.mean(np.sort(trigger_signal))) / 2
+    trigger_threshold = (2*np.median(np.sort(trigger_signal)[:len(record['responses'])]) +
+        np.median(trigger_signal)) / 3
 
     # Compare raw triggering signal and its derivation
     # plt.figure()
@@ -218,7 +219,7 @@ for filename, record in database.items():
                 margin = 100
                 search_area_start = max(0, i - max_trigger_peak_width // 2)
                 search_area_end = min(i + max_trigger_peak_width // 2, len(trigger_signal))
-                stimuli_index = int(search_area_start + np.argmin(trigger_signal[search_area_start:search_area_end]))
+                stimuli_index = int(search_area_start + np.argmin(trigger_signal[search_area_start:search_area_end])) - 4
                 if stimuli_index < margin:
                     i += max_trigger_peak_width
                     trigger_iter += 1
@@ -256,9 +257,9 @@ for filename, record in database.items():
                             def inv_ric(points, a):
                                 return -scipy.signal.ricker(points, a)
 
-                            widths = 0.5 * np.arange(1, 11)
+                            widths = 0.5 * np.arange(1, 10)
                             cwtmatr = scipy.signal.cwt(epoch, inv_ric, widths)
-                            peak_score = np.mean(cwtmatr[:, pre_stimuli + time2sample(0.17)])
+                            peak_score = np.median(cwtmatr[:, pre_stimuli + time2sample(0.165)])
 
                             # plt.figure()
                             # plt.title('Peak score: ' + str(peak_score))
@@ -393,24 +394,26 @@ for electrode in electrodes_to_analyze:
         csv_writers['epn_amplitudes'].writerow([amp_emo, amp_neutral])
 
     # Draw and save ERP plots
-    plt.figure()
+    plt.figure(figsize=(8.5,5.5))
     plt.title(electrode)
+    plt.axvspan(250, 350, facecolor='#C0C0C0', edgecolor='#C0C0C0', alpha=0.5)
     neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='#505050', linewidth=2)
     emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo,
                              color='r', linewidth=2, linestyle='dashed')
     plt.axvline(0, color='k', linestyle='dashed')
+    plt.text(280, np.min(averaged_neutral), 'EPN', fontsize=16)
     plt.axhline(0, color='k', linestyle='dashed')
     plt.xlabel('Time [ms]')
     plt.ylabel('uV')
+    plt.xlim([-100, 500])
     #plt.ylim([-8, 10.5])
     #plt.yticks(np.arange(-8.0, 10.1, 2))
     plt.legend(handles=[emotion_plot,neutral_plot],
                labels=['Emotional', 'Neutral'], fontsize=12)
-    plt.axvspan(0.25, 0.35, facecolor='#F0F0F0', edgecolor='#F0F0F0', alpha=0.5)
     if invert_y_axis:
         plt.gca().invert_yaxis()
 
     figure_file_all = os.path.join(figures_dir, 'all', electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on * low_cutoff)) + '_' + str(int(filter_on * high_cutoff)) + 'Hz_' + suffix)
     plt.savefig(figure_file_all + '.png')
-    #plt.savefig(figure_file_all + '.eps')
+    plt.savefig(figure_file_all + '.eps')
     #plt.show()
