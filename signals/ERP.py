@@ -339,8 +339,8 @@ invert_y_axis = False
 n170_begin = pre_stimuli + time2sample(0.10)
 n170_end = pre_stimuli + time2sample(0.20) + 1
 
-epn_begin = pre_stimuli + time2sample(0.25)
-epn_end = pre_stimuli + time2sample(0.35) + 1
+epn_begin = pre_stimuli + time2sample(0.24)
+epn_end = pre_stimuli + time2sample(0.34) + 1
 
 lats_emo = []
 lats_neutral = []
@@ -403,12 +403,12 @@ for electrode in electrodes_to_analyze:
     # Draw and save ERP plots
     plt.figure(figsize=(8.5,5.5))
     plt.title(electrode, fontsize=12)
-    plt.axvspan(250, 350, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
+    plt.axvspan(240, 340, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
     neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='#505050', linewidth=2)
     emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo,
                              color='r', linewidth=2, linestyle='dashed')
     plt.axvline(0, color='k', linestyle='dashed')
-    plt.text(280, np.min(averaged_neutral), 'EPN', fontsize=16)
+    plt.text(270, np.min(averaged_neutral), 'EPN', fontsize=16)
     plt.axhline(0, color='k', linestyle='dashed')
     plt.xlabel('Time [ms]', fontsize=12)
     plt.ylabel('uV', fontsize=12)
