@@ -17,15 +17,15 @@ all_electrodes = np.unique([triggering_electrode] + electrodes_to_analyze + ref_
 # Filtering options
 filter_on = True
 low_cutoff = 0.5
-high_cutoff = 24 # desired cutoff frequency of the filter, Hz (0 to disable filtering)
+high_cutoff = 15 # desired cutoff frequency of the filter, Hz (0 to disable filtering)
+trigger_high_cutoff = 15
 
 # Define pre and post stimuli period of epoch (in seconds)
 pre_stimuli = time2sample(0.1)
 post_stimuli = time2sample(0.5)
 
 # Define threshold for trigger signal
-max_trigger_peak_width = time2sample(3) # in seconds
-slope_width = 27 # in number of samples, controls shift of the stimuli start
+max_trigger_peak_width = time2sample(2) # in seconds
 
 # Valid signal value limits
 epoch_max_peak_to_peak = 70
@@ -49,16 +49,17 @@ if common_avg_ref:
     ######## COMMON AVERAGE REFERENCE ###########################
     common_database = database.copy()
     for filename, record in database.items():
-        for e in electrodes_to_analyze:
-            # Find average signal over all ref_electrodes
-            mean = np.zeros(len(record['signals'][triggering_electrode]))
-            count = 0
-            for electrode, signal in record['signals'].items():
-                if electrode in ref_electrodes:
-                    mean += signal
-                    count += 1
-            mean /= count
 
+        # Find average signal over all ref_electrodes
+        mean = np.zeros(len(record['signals'][triggering_electrode]))
+        count = 0
+        for electrode, signal in record['signals'].items():
+            if electrode in ref_electrodes:
+                mean += signal
+                count += 1
+        mean /= count
+
+        for e in electrodes_to_analyze:
             common_database[filename]['signals'][e] -= mean
 
     database = common_database
@@ -74,16 +75,20 @@ from filtering import *
 # Modify database by filtering signals
 for filename, record in database.items():
     for electrode, signal in record['signals'].items():
-        if electrode == triggering_electrode or filter_on:
-            filtered_signal = butter_bandpass_filter(signal, [low_cutoff, high_cutoff], fs)
+        if electrode == triggering_electrode:
+            temp_high = trigger_high_cutoff
+        else:
+            temp_high = high_cutoff
 
+        if filter_on or electrode == triggering_electrode:
+            filtered_signal = butter_bandpass_filter(signal, [low_cutoff, temp_high], fs)
             database[filename]['signals'][electrode] = filtered_signal
 #plot_database(database, 1)
 
 
 ############ CUT THE END OF SIGNAL TO REMOVE FILTERING ARTIFACTS ##################
 # Times (in seconds) to cut signals in the beginning and end
-left_cut = time2sample(0)
+left_cut = time2sample(1)
 right_cut = time2sample(3)
 
 for filename, record in database.items():
@@ -132,14 +137,6 @@ def is_face_emotional(face_id):
         return True
     return False
 
-# my own method, there could be something more universal for finding peak
-def forward_diff(signal, order):
-    new_signal = np.zeros_like(signal)
-    for n in range(len(signal) - order):
-        new_signal[n] = np.mean(signal[n:(n + order)])
-
-    return new_signal
-
 # Init container for ERP epochs
 extracted_epochs_emo = OrderedDict()
 extracted_epochs_neutral = OrderedDict()
@@ -166,14 +163,14 @@ for filename, record in database.items():
 
     # Compute forward difference of triggering electrode signal and find its minima
     raw_trigger_signal = np.array(record['signals'][triggering_electrode])
-    trigger_signal = forward_diff(raw_trigger_signal, slope_width)
-    trigger_threshold = (2*np.median(np.sort(trigger_signal)[:len(record['responses'])]) +
-        np.median(trigger_signal)) / 3
+    trigger_signal = np.gradient(raw_trigger_signal)
+    trigger_threshold = (2*np.median(np.sort(raw_trigger_signal)[:len(record['responses'])]) +
+        np.median(raw_trigger_signal)) / 3
 
     # Compare raw triggering signal and its derivation
     # plt.figure()
-    # plt.plot(range(len(trigger_signal)), raw_trigger_signal, 'b-')
-    # plt.plot(range(len(trigger_signal)), trigger_signal, 'g-', linewidth=1)
+    # plt.plot(np.array(range(len(trigger_signal))) / fs, raw_trigger_signal, 'b-')
+    # #plt.plot(np.array(range(len(trigger_signal))) / fs, trigger_signal, 'g-', linewidth=1)
     # plt.axhline(trigger_threshold, color='k', linestyle='dashed')
     # plt.xlabel('Time [s]')
     # plt.ylabel('uV')
@@ -186,7 +183,7 @@ for filename, record in database.items():
     true_timestamps = list()
     openvibe_timestamps = list()
     while i < len(trigger_signal):
-        if trigger_signal[i] < trigger_threshold:
+        if raw_trigger_signal[i] < trigger_threshold:
 
             if all_responses >= 5120:
                 break
@@ -216,9 +213,9 @@ for filename, record in database.items():
 
             if was_response_correct:
                 # Find stimuli index
-                margin = 100
-                search_area_start = max(0, i - max_trigger_peak_width // 2)
-                search_area_end = min(i + max_trigger_peak_width // 2, len(trigger_signal))
+                margin = max_trigger_peak_width // 2
+                search_area_start = max(0, i - margin)
+                search_area_end = min(i + margin + 1, len(trigger_signal))
                 stimuli_index = int(search_area_start + np.argmin(trigger_signal[search_area_start:search_area_end])) - 4
                 if stimuli_index < margin:
                     i += max_trigger_peak_width
@@ -228,11 +225,16 @@ for filename, record in database.items():
 
                 # Plot trigger synchronization timestamps
                 # plt.figure()
-                # plt.plot(range(len(trigger_signal[stimuli_index-margin:stimuli_index+margin])), raw_trigger_signal[stimuli_index-margin:stimuli_index+margin], 'g-', linewidth=3)
-                # plt.plot(range(len(trigger_signal[stimuli_index-margin:stimuli_index+margin])), trigger_signal[stimuli_index-margin:stimuli_index+margin], 'b-', linewidth=3)
-                # plt.axvline(margin, color='k', linestyle='dashed')
-                # plt.xlabel('Time [s]')
-                # plt.ylabel('uV')
+                # x_val = np.multiply(np.arange(len(trigger_signal[stimuli_index-margin:stimuli_index+margin+1])), 1000 / fs)
+                # plt.plot(x_val, raw_trigger_signal[stimuli_index-margin:stimuli_index+margin+1], 'g-', linewidth=1, marker='o', markersize=5)
+                # plt.plot(x_val, trigger_signal[stimuli_index-margin:stimuli_index+margin+1], 'b-', linewidth=1, marker='^', markersize=5, linestyle='dashed')
+                # plt.axvline(1000 * margin / fs, color='k', linestyle='dashed')
+                # plt.axhline(trigger_threshold, color='k', linestyle='dashed')
+                # plt.xlim([1000 * margin / fs - 500, 1000 * margin / fs + 500])
+                # plt.xlabel('Time [ms]', fontsize=12)
+                # plt.ylabel('uV', fontsize=12)
+                # plt.xticks(fontsize=12)
+                # plt.yticks(fontsize=12)
                 # #plt.grid()
                 # plt.show()
 
@@ -257,18 +259,23 @@ for filename, record in database.items():
                             def inv_ric(points, a):
                                 return -scipy.signal.ricker(points, a)
 
-                            widths = 0.5 * np.arange(1, 10)
+                            widths = 0.5 * np.arange(1, 11)
                             cwtmatr = scipy.signal.cwt(epoch, inv_ric, widths)
-                            peak_score = np.median(cwtmatr[:, pre_stimuli + time2sample(0.165)])
+                            peak_score = np.max(cwtmatr[:, pre_stimuli + time2sample(0.165)])
 
+                            #if peak_score < min_peak_score:
                             # plt.figure()
                             # plt.title('Peak score: ' + str(peak_score))
                             # plt.imshow(cwtmatr, extent=[-100, 500, epoch.min(), epoch.max()], cmap='coolwarm', aspect='auto',
                             #            vmax=abs(cwtmatr).max(), vmin=-abs(cwtmatr).max())
                             # plt.plot(
                             #     np.multiply(np.arange(len(epoch)) - pre_stimuli, 1000 / fs),
-                            #     epoch, linewidth=2)
+                            #     epoch, 'g-', linewidth=2)
                             # plt.axvline(165, color='k', linestyle='dashed')
+                            # plt.xlabel('Time [ms]', fontsize=12)
+                            # plt.ylabel('uV', fontsize=12)
+                            # plt.xticks(fontsize=12)
+                            # plt.yticks(fontsize=12)
                             # plt.xlim([-100, 500])
                             # plt.show()
                         else:
@@ -395,16 +402,18 @@ for electrode in electrodes_to_analyze:
 
     # Draw and save ERP plots
     plt.figure(figsize=(8.5,5.5))
-    plt.title(electrode)
-    plt.axvspan(250, 350, facecolor='#C0C0C0', edgecolor='#C0C0C0', alpha=0.5)
+    plt.title(electrode, fontsize=12)
+    plt.axvspan(250, 350, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
     neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='#505050', linewidth=2)
     emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo,
                              color='r', linewidth=2, linestyle='dashed')
     plt.axvline(0, color='k', linestyle='dashed')
     plt.text(280, np.min(averaged_neutral), 'EPN', fontsize=16)
     plt.axhline(0, color='k', linestyle='dashed')
-    plt.xlabel('Time [ms]')
-    plt.ylabel('uV')
+    plt.xlabel('Time [ms]', fontsize=12)
+    plt.ylabel('uV', fontsize=12)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
     plt.xlim([-100, 500])
     #plt.ylim([-8, 10.5])
     #plt.yticks(np.arange(-8.0, 10.1, 2))
