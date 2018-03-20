@@ -44,8 +44,9 @@ def butter_lowpass_filter(data, cutoff, fs, order=6):
 def butter_bandpass_filter(data, cutoff, fs, order=3):
     b, a = butter_highpass(cutoff[0], fs, order=order)
     y = filtfilt(b, a, data, method='gust')
-    b, a = butter_lowpass(cutoff[1], fs, order=order)
-    y = filtfilt(b, a, y, method='gust')
+    if cutoff[1] > 0:
+        b, a = butter_lowpass(cutoff[1], fs, order=order)
+        y = filtfilt(b, a, y, method='gust')
     return y
 
 def butter_bandpass_filter_old(data, cutoff, fs, order=8):

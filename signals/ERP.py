@@ -4,7 +4,7 @@ import scipy
 ############# CONFIG ###########################
 person_id = -1
 database_regex = 'csv/'+ str(person_id if person_id > 0 else '*') + '/record-F*.csv'
-suffix='ALL'
+suffix = 'ALL'
 
 triggering_electrode = 'F7'
 electrodes_to_analyze = ['P7', 'P8', 'O1','O2']
@@ -255,36 +255,10 @@ for filename, record in database.items():
                         epoch_min = np.min(epoch)
                         epoch_peak_to_peak = epoch_max - epoch_min
 
-                        if peak_filtering:
-                            def inv_ric(points, a):
-                                return -scipy.signal.ricker(points, a)
-
-                            widths = 0.5 * np.arange(1, 11)
-                            cwtmatr = scipy.signal.cwt(epoch, inv_ric, widths)
-                            peak_score = np.max(cwtmatr[:, pre_stimuli + time2sample(0.165)])
-
-                            #if peak_score < min_peak_score:
-                            # plt.figure()
-                            # plt.title('Peak score: ' + str(peak_score))
-                            # plt.imshow(cwtmatr, extent=[-100, 500, epoch.min(), epoch.max()], cmap='coolwarm', aspect='auto',
-                            #            vmax=abs(cwtmatr).max(), vmin=-abs(cwtmatr).max())
-                            # plt.plot(
-                            #     np.multiply(np.arange(len(epoch)) - pre_stimuli, 1000 / fs),
-                            #     epoch, 'g-', linewidth=2)
-                            # plt.axvline(165, color='k', linestyle='dashed')
-                            # plt.xlabel('Time [ms]', fontsize=12)
-                            # plt.ylabel('uV', fontsize=12)
-                            # plt.xticks(fontsize=12)
-                            # plt.yticks(fontsize=12)
-                            # plt.xlim([-100, 500])
-                            # plt.show()
-                        else:
-                            peak_score = min_peak_score + 1
-
                         if trigger_iter < 0:
                             # Draw and save single epochs
                             plt.figure()
-                            plt.title(electrode + (', peak score: ' + str(peak_score)) if peak_filtering else '')
+                            plt.title(electrode)
                             plt.plot(((np.array(range(len(epoch)))) - pre_stimuli) / fs, epoch, 'g-', linewidth=1)
                             plt.axvline(0, color='k', linestyle='dashed')
                             plt.axvline(0.17, color='b', linestyle='dashed')
@@ -294,20 +268,55 @@ for filename, record in database.items():
                             plt.savefig(os.path.join(figures_dir, basename(filename), 'epochs', electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png'))
                             plt.close()
 
-                        # Collect correct epochs
-                        if epoch_peak_to_peak <= epoch_max_peak_to_peak and peak_score >= min_peak_score:
-                            try:
-                                if len(record['order']) > 0 and is_face_emotional(face_id):
-                                    extracted_epochs_emo[electrode].append(epoch)
-                                else:
-                                    extracted_epochs_neutral[electrode].append(epoch)
-                            except:
-                                pass
-
                         if epoch_peak_to_peak > epoch_max_peak_to_peak:
+                            epoch_writers['Max_peak' + electrode].writerow(org_epoch)
                             wrong_range[electrode] += 1
-                        elif peak_score < min_peak_score:
+                            continue
+
+                        if peak_filtering:
+                            def inv_ric(points, a):
+                                return -scipy.signal.ricker(points, a)
+
+                            widths = 0.5 * np.arange(2, 11)
+                            cwtmatr = scipy.signal.cwt(epoch, inv_ric, widths)
+                            peak_point = pre_stimuli + time2sample(0.16)
+                            peak_score = np.mean(cwtmatr[:, peak_point-1:peak_point+4])
+
+                            #if peak_score < min_peak_score:
+                            # plt.figure()
+                            # plt.title('Peak score: ' + str(peak_score), fontsize=14)
+                            # plt.imshow(cwtmatr, extent=[-100, 500, epoch.min(), epoch.max()], cmap='coolwarm', aspect='auto',
+                            #            vmax=abs(cwtmatr).max(), vmin=-abs(cwtmatr).max())
+                            # plt.plot(
+                            #     np.multiply(np.arange(len(epoch)) - pre_stimuli, 1000 / fs),
+                            #     epoch, 'g-', linewidth=2)
+                            # plt.axvline(1000*sample2time(peak_point-1-pre_stimuli), color='k', linestyle='dashed')
+                            # plt.axvline(1000*sample2time(peak_point+3-pre_stimuli), color='k', linestyle='dashed')
+                            # plt.xlabel('Time [ms]', fontsize=14)
+                            # plt.ylabel('uV', fontsize=14)
+                            # plt.xticks(fontsize=14)
+                            # plt.yticks(fontsize=14)
+                            # plt.xlim([-100, 500])
+                            # plt.tight_layout()
+                            # plt.show()
+                        else:
+                            peak_score = min_peak_score + 1
+
+                        if peak_score < min_peak_score:
+                            epoch_writers['No_peak' + electrode].writerow(org_epoch)
                             wrong_peak[electrode] += 1
+                            continue
+
+                        # Collect correct epochs
+                        epoch_writers['OK' + electrode].writerow(org_epoch)
+                        try:
+                            if len(record['order']) > 0 and is_face_emotional(face_id):
+                                extracted_epochs_emo[electrode].append(epoch)
+                            else:
+                                extracted_epochs_neutral[electrode].append(epoch)
+                        except:
+                            pass
+
             else:
                 face_id = record['order'][trigger_iter][0]
                 if is_face_emotional(face_id):
@@ -351,8 +360,8 @@ n170_amps_neutral = []
 epn_amps_emo = []
 epn_amps_neutral = []
 
-
 for electrode in electrodes_to_analyze:
+    print(electrode)
 
     #TODO: use dictionary
     epochs_emo = extracted_epochs_emo[electrode]
@@ -372,6 +381,8 @@ for electrode in electrodes_to_analyze:
     # change voltage scale as difference from baseline
     averaged_emo -= np.mean(averaged_emo[:pre_stimuli + 1])
     averaged_neutral -= np.mean(averaged_neutral[:pre_stimuli + 1])
+
+    print(np.mean(averaged_emo[epn_begin:epn_end]), np.mean(averaged_neutral[epn_begin:epn_end]), np.mean(averaged_neutral[epn_begin:epn_end]) - np.mean(averaged_emo[epn_begin:epn_end]))
 
     # Fill csv logs for statistical analysis
     # ANOVAs calculated using: http://vassarstats.net/anova1u.html
@@ -401,22 +412,23 @@ for electrode in electrodes_to_analyze:
         csv_writers['epn_amplitudes'].writerow([amp_emo, amp_neutral])
 
     # Draw and save ERP plots
-    plt.figure(figsize=(8.5,5.5))
+    plt.figure(figsize=(8.5, 5.5))
     plt.title(electrode, fontsize=12)
     plt.axvspan(240, 340, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
     neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='#505050', linewidth=2)
     emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo,
                              color='r', linewidth=2, linestyle='dashed')
     plt.axvline(0, color='k', linestyle='dashed')
-    plt.text(270, np.min(averaged_neutral), 'EPN', fontsize=16)
+    plt.text(270, -15, 'EPN', fontsize=16)
     plt.axhline(0, color='k', linestyle='dashed')
     plt.xlabel('Time [ms]', fontsize=12)
     plt.ylabel('uV', fontsize=12)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
     plt.xlim([-100, 500])
-    #plt.ylim([-8, 10.5])
-    #plt.yticks(np.arange(-8.0, 10.1, 2))
+    plt.ylim([-16.5, 10])
+    plt.yticks(np.arange(-15.0, 10.1, 5))
+    plt.tight_layout()
     plt.legend(handles=[emotion_plot,neutral_plot],
                labels=['Emotional', 'Neutral'], fontsize=12)
     if invert_y_axis:
