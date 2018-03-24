@@ -166,11 +166,13 @@ def plot_database(database, file=None):
 
         for electrode, signal in record['signals'].items():
             plt.figure()
-            plt.title(electrode + ' - ' + filename)
-            plt.plot(timestamps, signal, 'g-', linewidth=1)
+            plt.title(electrode)
+            plt.plot(timestamps, signal, 'k-', linewidth=1)
             for id, time in record['order']:
-                plt.axvline(time, linestyle='dashed', label=str(id))
-            plt.xlabel('Time [s]')
-            plt.ylabel('uV')
+                plt.axvline(time, color='k', linestyle='dashed', label=str(id))
+            plt.xlabel('Time (s)', fontsize=12)
+            plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
+            plt.xticks(fontsize=12)
+            plt.yticks(fontsize=12)
             #plt.grid()
             plt.show()

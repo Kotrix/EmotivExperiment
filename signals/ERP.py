@@ -172,8 +172,8 @@ for filename, record in database.items():
     # plt.plot(np.array(range(len(trigger_signal))) / fs, raw_trigger_signal, 'b-')
     # #plt.plot(np.array(range(len(trigger_signal))) / fs, trigger_signal, 'g-', linewidth=1)
     # plt.axhline(trigger_threshold, color='k', linestyle='dashed')
-    # plt.xlabel('Time [s]')
-    # plt.ylabel('uV')
+    # plt.xlabel('Latency (ms)', fontsize=12)
+    # plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
     # plt.grid()
     # plt.show()
 
@@ -226,15 +226,17 @@ for filename, record in database.items():
                 # Plot trigger synchronization timestamps
                 # plt.figure()
                 # x_val = np.multiply(np.arange(len(trigger_signal[stimuli_index-margin:stimuli_index+margin+1])), 1000 / fs)
-                # plt.plot(x_val, raw_trigger_signal[stimuli_index-margin:stimuli_index+margin+1], 'g-', linewidth=1, marker='o', markersize=5)
-                # plt.plot(x_val, trigger_signal[stimuli_index-margin:stimuli_index+margin+1], 'b-', linewidth=1, marker='^', markersize=5, linestyle='dashed')
-                # plt.axvline(1000 * margin / fs, color='k', linestyle='dashed')
-                # plt.axhline(trigger_threshold, color='k', linestyle='dashed')
+                # raw, = plt.plot(x_val, raw_trigger_signal[stimuli_index-margin:stimuli_index+margin+1], 'k-', linewidth=2, marker='o', markersize=3)
+                # diff, = plt.plot(x_val, trigger_signal[stimuli_index-margin:stimuli_index+margin+1], 'k-', linewidth=3, linestyle='dashed')
+                # plt.axvline(1000 * margin / fs, color='k')
+                # plt.axhline(trigger_threshold, color='k')
                 # plt.xlim([1000 * margin / fs - 500, 1000 * margin / fs + 500])
-                # plt.xlabel('Time [ms]', fontsize=12)
-                # plt.ylabel('uV', fontsize=12)
+                # plt.xlabel('Time (ms)', fontsize=12)
+                # plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
                 # plt.xticks(fontsize=12)
                 # plt.yticks(fontsize=12)
+                # plt.legend(handles=[raw, diff],
+                #            labels=['Triggering signal', '2nd-order central diff.'], fontsize=12)
                 # #plt.grid()
                 # plt.show()
 
@@ -282,23 +284,30 @@ for filename, record in database.items():
                             peak_point = pre_stimuli + time2sample(0.16)
                             peak_score = np.mean(cwtmatr[:, peak_point-1:peak_point+4])
 
-                            #if peak_score < min_peak_score:
-                            # plt.figure()
-                            # plt.title('Peak score: ' + str(peak_score), fontsize=14)
-                            # plt.imshow(cwtmatr, extent=[-100, 500, epoch.min(), epoch.max()], cmap='coolwarm', aspect='auto',
-                            #            vmax=abs(cwtmatr).max(), vmin=-abs(cwtmatr).max())
-                            # plt.plot(
-                            #     np.multiply(np.arange(len(epoch)) - pre_stimuli, 1000 / fs),
-                            #     epoch, 'g-', linewidth=2)
-                            # plt.axvline(1000*sample2time(peak_point-1-pre_stimuli), color='k', linestyle='dashed')
-                            # plt.axvline(1000*sample2time(peak_point+3-pre_stimuli), color='k', linestyle='dashed')
-                            # plt.xlabel('Time [ms]', fontsize=14)
-                            # plt.ylabel('uV', fontsize=14)
-                            # plt.xticks(fontsize=14)
-                            # plt.yticks(fontsize=14)
-                            # plt.xlim([-100, 500])
-                            # plt.tight_layout()
-                            # plt.show()
+                            # if peak_score < min_peak_score:
+                            #
+                            #     plt.figure()
+                            #     plt.title('Peak score: ' + str(peak_score), fontsize=14)
+                            #     plt.imshow(cwtmatr, extent=[-100, 500, epoch.min(), epoch.max()], cmap='gray', aspect='auto',
+                            #                vmax=abs(cwtmatr).max(), vmin=-abs(cwtmatr).max(), alpha=0.7)
+                            #     plt.xticks(fontsize=14)
+                            #     plt.yticks(fontsize=14)
+                            #     plt.xlabel('Latency (ms)', fontsize=12)
+                            #     plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
+                            #     plt.ylim([epoch.min(), epoch.max()])
+                            #     #plt.twinx()
+                            #     plt.plot(
+                            #         np.multiply(np.arange(len(epoch)) - pre_stimuli, 1000 / fs),
+                            #         epoch, 'k-', linewidth=3, linestyle='dashed')
+                            #     plt.axvline(1000*sample2time(peak_point-1-pre_stimuli), color='k', linestyle='dashed', linewidth=2)
+                            #     plt.axvline(1000*sample2time(peak_point+3-pre_stimuli), color='k', linestyle='dashed', linewidth=2)
+                            #     #plt.xticks(fontsize=14)
+                            #     #plt.yticks(epoch.min() + (np.arange(9)) * (epoch.max() - epoch.min()) / 9 + (epoch.max() - epoch.min()) / 18, widths, fontsize=14)
+                            #     #plt.ylabel('Wavelet width', fontsize=12)
+                            #     plt.xlim([-100, 500])
+                            #     plt.ylim([epoch.min(), epoch.max()])
+                            #     plt.tight_layout()
+                            #     plt.show()
                         else:
                             peak_score = min_peak_score + 1
 
@@ -417,20 +426,20 @@ for electrode in electrodes_to_analyze:
     plt.axvspan(240, 340, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
     neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='#505050', linewidth=2)
     emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo,
-                             color='r', linewidth=2, linestyle='dashed')
-    plt.axvline(0, color='k', linestyle='dashed')
+                             color='k', linewidth=2, linestyle='dashed')
+    plt.axvline(0, color='k', linewidth=1)
     plt.text(270, -15, 'EPN', fontsize=16)
-    plt.axhline(0, color='k', linestyle='dashed')
-    plt.xlabel('Time [ms]', fontsize=12)
-    plt.ylabel('uV', fontsize=12)
+    plt.axhline(0, color='k', linewidth=1)
+    plt.xlabel('Latency (ms)', fontsize=12)
+    plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
     plt.xlim([-100, 500])
     plt.ylim([-16.5, 10])
     plt.yticks(np.arange(-15.0, 10.1, 5))
     plt.tight_layout()
-    plt.legend(handles=[emotion_plot,neutral_plot],
-               labels=['Emotional', 'Neutral'], fontsize=12)
+    plt.legend(handles=[neutral_plot, emotion_plot],
+               labels=['Neutral', 'Emotional'], fontsize=12)
     if invert_y_axis:
         plt.gca().invert_yaxis()
 
