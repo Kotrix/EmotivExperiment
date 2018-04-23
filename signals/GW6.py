@@ -1,5 +1,4 @@
 import numpy as np
-import math
 
 def GW6(data: np.ndarray):
     return calculate_EEG_correlation(calculate_pearson_correlation_combinations(data), data.shape[0])
@@ -17,23 +16,22 @@ def calculate_pearson_correlation_combinations(data: np.ndarray):
 
     pearson_correlation_array = np.zeros((number_of_channels_combination, data_length))  # put zero each element of array R(I, X)
 
-    for J in range(number_of_stimuli):  # for all the stimuli given
-        I = 0
-        for Ax in range(number_of_channels - 1):
-            for Bx in range(Ax + 1, number_of_channels):
-                A1 = np.zeros(data_length)
-                for U in range(half_windows_length, data_length - half_windows_length):
-                    x1 = U - half_windows_length
-                    x2 = U + half_windows_length
+    I = 0
+    for Ax in range(number_of_channels - 1):
+        for Bx in range(Ax + 1, number_of_channels):
+            A1 = np.zeros((data_length, number_of_stimuli))
+            for U in range(half_windows_length, data_length - half_windows_length):
+                x1 = U - half_windows_length
+                x2 = U + half_windows_length
 
-                    vec1 = data[Ax, x1:x2, J]
-                    vec2 = data[Bx, x1:x2, J]
+                vec1 = data[Ax, x1:x2, :]
+                vec2 = data[Bx, x1:x2, :]
 
-                    # subroutine of  Pearson's  Correlation
-                    A1[U] = pearson_correlation(vec1, vec2)
+                # subroutine of  Pearson's  Correlation
+                A1[U, :] = pearson_correlation(vec1, vec2)
 
-                pearson_correlation_array[I, :] += A1
-                I = I + 1  # counter of the progressive combinations of two channels
+            pearson_correlation_array[I, :] += np.sum(A1, axis=1)
+            I = I + 1  # counter of the progressive combinations of two channels
 
     pearson_correlation_array /= number_of_stimuli
     return pearson_correlation_array[:, windows_length:data_length - windows_length]
@@ -41,16 +39,17 @@ def calculate_pearson_correlation_combinations(data: np.ndarray):
 
 # Pearson’s correlation subroutine
 def pearson_correlation(vec1: np.ndarray, vec2: np.ndarray):
-    vec1_avg = np.average(vec1)
-    vec2_avg = np.average(vec2)
-    f1 = np.average((vec1 - vec1_avg) * (vec2 - vec2_avg))
-    f2 = np.average((vec1 - vec1_avg) ** 2)
-    f3 = np.average((vec2 - vec2_avg) ** 2)
+    vec1_avg = np.mean(vec1, axis=0)
+    vec2_avg = np.mean(vec2, axis=0)
 
-    if f2 == 0 or f3 == 0:
-        return 0
+    f1 = np.average((vec1 - vec1_avg) * (vec2 - vec2_avg), axis=0)
+    f2 = np.average((vec1 - vec1_avg) ** 2, axis=0)
+    f3 = np.average((vec2 - vec2_avg) ** 2, axis=0)
+
+    if f2.all() == 0 or f3.all() == 0:
+        return np.zeros_like(f1)
     else:
-        return 100 * f1 / math.sqrt(f2 * f3)  # the r of Pearson is multiplied by 100
+        return 100 * f1 / np.sqrt(f2 * f3)  # the r of Pearson is multiplied by 100
 
 def calculate_EEG_correlation(pearson_correlation_array: np.ndarray, number_of_channels: int):
     number_of_channels_combination, epochs_length = np.shape(pearson_correlation_array)
