@@ -5,6 +5,7 @@ signals/csv_old
 signals/*.csv
 signals/figures/*
 signals/.idea
+.idea
 *.docx
 
 # Byte-compiled / optimized / DLL files
