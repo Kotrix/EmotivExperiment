@@ -2,9 +2,9 @@ from data_utils import *
 import scipy
 
 ############# CONFIG ###########################
-person_id = -1
+person_id = 1
 database_regex = 'csv/'+ str(person_id if person_id > 0 else '*') + '/record-F*.csv'
-suffix = 'ALL'
+suffix = 'ONE'
 
 triggering_electrode = 'F7'
 electrodes_to_analyze = ['P7', 'P8', 'O1','O2']
@@ -39,6 +39,12 @@ for name in csv_logs:
     csv_writers[name] = csv.writer(csvfile, delimiter=',', quotechar='|')
     csv_writers[name].writerow(['emotional', 'neutral'])
 
+epoch_logs = ['OK', 'No_peak', 'Max_peak']
+epoch_writers = dict()
+for name in epoch_logs:
+    for e in electrodes_to_analyze:
+        csvfile = open(os.path.join('epochs', name, e + '.csv'), 'w', newline='')
+        epoch_writers[name + e] = csv.writer(csvfile, delimiter=',', quotechar='|')
 
 ######### READ SIGNALS FROM DISK ############################
 
@@ -71,6 +77,8 @@ if common_avg_ref:
 
 ########### SIGNALS FILTERING ###############
 from filtering import *
+
+org_database = database.copy()
 
 # Modify database by filtering signals
 for filename, record in database.items():
@@ -183,7 +191,7 @@ for filename, record in database.items():
     true_timestamps = list()
     openvibe_timestamps = list()
     while i < len(trigger_signal):
-        if raw_trigger_signal[i] < trigger_threshold:
+        if np.all(raw_trigger_signal[i:i+5] < trigger_threshold):
 
             if all_responses >= 5120:
                 break
@@ -223,21 +231,28 @@ for filename, record in database.items():
                     all_responses -= 1
                     continue
 
-                # Plot trigger synchronization timestamps
+                #Plot trigger synchronization timestamps
                 # plt.figure()
-                # x_val = np.multiply(np.arange(len(trigger_signal[stimuli_index-margin:stimuli_index+margin+1])), 1000 / fs)
-                # raw, = plt.plot(x_val, raw_trigger_signal[stimuli_index-margin:stimuli_index+margin+1], 'k-', linewidth=2, marker='o', markersize=3)
-                # diff, = plt.plot(x_val, trigger_signal[stimuli_index-margin:stimuli_index+margin+1], 'k-', linewidth=3, linestyle='dashed')
-                # plt.axvline(1000 * margin / fs, color='k')
+                # x_val = np.multiply(np.arange(len(trigger_signal[stimuli_index - margin:stimuli_index + margin + 1])),
+                #                     1000 / fs)
+                # raw, = plt.plot(x_val, raw_trigger_signal[stimuli_index - margin:stimuli_index + margin + 1], 'k-',
+                #                 linewidth=2, marker='o', markersize=3)
+                # diff, = plt.plot(x_val, trigger_signal[stimuli_index - margin:stimuli_index + margin + 1], 'k-',
+                #                  linewidth=2, linestyle='dashed')
+                # plt.axvline(1000 * (margin + 4) / fs, color='k')
+                # plt.axvline(1000 * (margin+1) / fs, color='k', linestyle='dotted')
                 # plt.axhline(trigger_threshold, color='k')
-                # plt.xlim([1000 * margin / fs - 500, 1000 * margin / fs + 500])
+                # plt.arrow(1000 * (margin + 4) / fs, 500, -3000 / fs + 6, 0, head_width=60, head_length=6, fc='k',
+                #           ec='k', linestyle='dotted')
+                # plt.xlim([1000 * margin / fs - 30, 1000 * margin / fs + 80])
                 # plt.xlabel('Time (ms)', fontsize=12)
-                # plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
+                # # plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
                 # plt.xticks(fontsize=12)
-                # plt.yticks(fontsize=12)
-                # plt.legend(handles=[raw, diff],
-                #            labels=['Triggering signal', '2nd-order central diff.'], fontsize=12)
-                # #plt.grid()
+                # plt.yticks([], fontsize=12)
+                # plt.tight_layout()
+                # # plt.legend(handles=[raw, diff],
+                # #            labels=['Triggering signal', '2nd-order central diff.'], fontsize=12)
+                # # plt.grid()
                 # plt.show()
 
                 try:
@@ -252,7 +267,8 @@ for filename, record in database.items():
                         all_responses -= 1
                         break
                     if electrode in electrodes_to_analyze:
-                        epoch = signal[stimuli_index - pre_stimuli:stimuli_index + post_stimuli]
+                        epoch = signal[stimuli_index - pre_stimuli:stimuli_index + post_stimuli + 1]
+                        org_epoch = org_database[filename]['signals'][electrode][stimuli_index - pre_stimuli:stimuli_index + post_stimuli + 1]
                         epoch_max = np.max(epoch)
                         epoch_min = np.min(epoch)
                         epoch_peak_to_peak = epoch_max - epoch_min
@@ -287,7 +303,7 @@ for filename, record in database.items():
                             # if peak_score < min_peak_score:
                             #
                             #     plt.figure()
-                            #     plt.title('Peak score: ' + str(peak_score), fontsize=14)
+                            #     plt.title('Condition: ' + str(peak_score), fontsize=14)
                             #     plt.imshow(cwtmatr, extent=[-100, 500, epoch.min(), epoch.max()], cmap='gray', aspect='auto',
                             #                vmax=abs(cwtmatr).max(), vmin=-abs(cwtmatr).max(), alpha=0.7)
                             #     plt.xticks(fontsize=14)
@@ -390,6 +406,33 @@ for electrode in electrodes_to_analyze:
     # change voltage scale as difference from baseline
     averaged_emo -= np.mean(averaged_emo[:pre_stimuli + 1])
     averaged_neutral -= np.mean(averaged_neutral[:pre_stimuli + 1])
+
+    # plt.figure(figsize=(6.5, 5.5))
+    # plt.title(electrode, fontsize=12)
+    # acc_mean = []
+    # for i, epoch in enumerate(np.array(extracted_epochs_emo[electrode])[[1,3,10,11,13,17,20,24]]):
+    #     acc_mean.append(epoch)
+    #     #plt.plot((epoch - np.mean(epoch))/np.std(epoch), linewidth=1, color='k', alpha=0.7)
+    #     plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), epoch, linewidth=1, color='k', linestyle='dashed')
+    #
+    # # for i, epoch in enumerate(np.array(extracted_epochs_neutral[electrode])[[1,3,10,11,13,17,20,24]]):
+    # #     acc_mean.append(epoch)
+    # #     #plt.plot((epoch - np.mean(epoch))/np.std(epoch), linewidth=1, color='k', alpha=0.7)
+    # #     plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), epoch, linewidth=1, color='k')
+    #
+    # acc_mean = np.mean(acc_mean, axis=0)
+    # plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), acc_mean, linewidth=3, color='k')
+    #
+    # plt.xlabel('Latency (ms)', fontsize=12)
+    # plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
+    # plt.xticks(fontsize=12)
+    # plt.yticks(fontsize=12)
+    # plt.xlim([-100, 500])
+    # plt.ylim([-21, 12])
+    # plt.yticks(np.arange(-20.0, 15.1, 5))
+    # plt.tight_layout()
+    # plt.show()
+
 
     print(np.mean(averaged_emo[epn_begin:epn_end]), np.mean(averaged_neutral[epn_begin:epn_end]), np.mean(averaged_neutral[epn_begin:epn_end]) - np.mean(averaged_emo[epn_begin:epn_end]))
 
