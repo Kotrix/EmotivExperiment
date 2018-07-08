@@ -176,3 +176,19 @@ def plot_database(database, file=None):
             plt.yticks(fontsize=12)
             #plt.grid()
             plt.show()
+
+def extracted_epochs_to_ndarray(orderedDict: OrderedDict):
+    stimuliMaxIter = 213
+    resultArr = np.zeros((4, 78, stimuliMaxIter))
+    electrodeIter = 0
+    for electrode in orderedDict:
+        channel = orderedDict[electrode]
+        stimuliIter = 0
+        for stimuli in channel:
+            resultArr[electrodeIter, :, stimuliIter] = stimuli
+            stimuliIter += 1
+            if (stimuliIter == stimuliMaxIter):
+                break
+        electrodeIter += 1
+
+    return resultArr

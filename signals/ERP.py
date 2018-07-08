@@ -1,13 +1,15 @@
 from data_utils import *
+import RWA as rwa
+import GW6 as gw6
 import scipy
 
 ############# CONFIG ###########################
 person_id = 1
 database_regex = 'csv/'+ str(person_id if person_id > 0 else '*') + '/record-F*.csv'
-suffix = 'ONE'
+suffix = 'GW6'
 
 triggering_electrode = 'F7'
-electrodes_to_analyze = ['P7', 'P8', 'O1','O2']
+electrodes_to_analyze = ['P7','O1','O2','P8']
 
 common_avg_ref = True
 ref_electrodes = ['AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'] if common_avg_ref else []
@@ -385,108 +387,147 @@ n170_amps_neutral = []
 epn_amps_emo = []
 epn_amps_neutral = []
 
-for electrode in electrodes_to_analyze:
-    print(electrode)
+# GW6
+averaged_emo = gw6.GW6(extracted_epochs_to_ndarray(extracted_epochs_emo))[0]
+averaged_neutral = gw6.GW6(extracted_epochs_to_ndarray(extracted_epochs_neutral))[0]
 
-    #TODO: use dictionary
-    epochs_emo = extracted_epochs_emo[electrode]
-    epochs_neutral = extracted_epochs_neutral[electrode]
+# Draw and save ERP plots
+plt.figure(figsize=(8.5, 5.5))
+plt.title('GW6', fontsize=12)
+plt.axvspan(240, 340, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
+neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral,
+                         color='#505050', linewidth=2)
+emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo,
+                         color='k', linewidth=2, linestyle='dashed')
+plt.axvline(0, color='k', linewidth=1)
+plt.text(270, -15, 'EPN', fontsize=16)
+plt.axhline(0, color='k', linewidth=1)
+plt.xlabel('Latency (ms)', fontsize=12)
+plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
+plt.xticks(fontsize=12)
+plt.yticks(fontsize=12)
+# plt.xlim([-100, 500])
+# plt.ylim([-16.5, 10])
+# plt.yticks(np.arange(-15.0, 10.1, 5))
+plt.tight_layout()
+plt.legend(handles=[neutral_plot, emotion_plot],
+           labels=['Neutral', 'Emotional'], fontsize=12)
+if invert_y_axis:
+    plt.gca().invert_yaxis()
 
-    num_emo = len(epochs_emo)
-    num_neutral = len(epochs_neutral)
-    print(num_emo, num_neutral)
+figure_file_all = os.path.join(figures_dir, 'all', 'GW6_all')
+plt.savefig(figure_file_all + '.png')
 
-    if num_emo == 0 or num_neutral == 0:
-        continue
-
-    # Grand-average over all epochs
-    averaged_emo = np.mean(epochs_emo, axis=0)
-    averaged_neutral = np.mean(epochs_neutral, axis=0)
-
-    # change voltage scale as difference from baseline
-    averaged_emo -= np.mean(averaged_emo[:pre_stimuli + 1])
-    averaged_neutral -= np.mean(averaged_neutral[:pre_stimuli + 1])
-
-    # plt.figure(figsize=(6.5, 5.5))
-    # plt.title(electrode, fontsize=12)
-    # acc_mean = []
-    # for i, epoch in enumerate(np.array(extracted_epochs_emo[electrode])[[1,3,10,11,13,17,20,24]]):
-    #     acc_mean.append(epoch)
-    #     #plt.plot((epoch - np.mean(epoch))/np.std(epoch), linewidth=1, color='k', alpha=0.7)
-    #     plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), epoch, linewidth=1, color='k', linestyle='dashed')
-    #
-    # # for i, epoch in enumerate(np.array(extracted_epochs_neutral[electrode])[[1,3,10,11,13,17,20,24]]):
-    # #     acc_mean.append(epoch)
-    # #     #plt.plot((epoch - np.mean(epoch))/np.std(epoch), linewidth=1, color='k', alpha=0.7)
-    # #     plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), epoch, linewidth=1, color='k')
-    #
-    # acc_mean = np.mean(acc_mean, axis=0)
-    # plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), acc_mean, linewidth=3, color='k')
-    #
-    # plt.xlabel('Latency (ms)', fontsize=12)
-    # plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
-    # plt.xticks(fontsize=12)
-    # plt.yticks(fontsize=12)
-    # plt.xlim([-100, 500])
-    # plt.ylim([-21, 12])
-    # plt.yticks(np.arange(-20.0, 15.1, 5))
-    # plt.tight_layout()
-    # plt.show()
-
-
-    print(np.mean(averaged_emo[epn_begin:epn_end]), np.mean(averaged_neutral[epn_begin:epn_end]), np.mean(averaged_neutral[epn_begin:epn_end]) - np.mean(averaged_emo[epn_begin:epn_end]))
-
-    # Fill csv logs for statistical analysis
-    # ANOVAs calculated using: http://vassarstats.net/anova1u.html
-    for i in range(min(num_emo, num_neutral)):
-        amp_emo = (np.argmin(epochs_emo[i][n170_begin:n170_end]) + n170_begin)
-        amp_neutral = (np.argmin(epochs_neutral[i][n170_begin:n170_end]) + n170_begin)
-        lats_emo.append(amp_emo)
-        lats_neutral.append(amp_neutral)
-        csv_writers['latencies'].writerow([amp_emo, amp_neutral])
-
-    csv_writers['n170_amplitudes'].writerow(['c']*20)
-    csv_writers['n170_amplitudes'].writerow([electrode])
-    for i in range(min(num_emo, num_neutral)):
-        amp_emo = np.min(epochs_emo[i][n170_begin:n170_end])
-        amp_neutral = np.min(epochs_neutral[i][n170_begin:n170_end])
-        n170_amps_emo.append(amp_emo)
-        n170_amps_neutral.append(amp_neutral)
-        csv_writers['n170_amplitudes'].writerow([amp_emo, amp_neutral])
-
-    csv_writers['epn_amplitudes'].writerow(['c'] * 20)
-    csv_writers['epn_amplitudes'].writerow([electrode])
-    for i in range(min(num_emo, num_neutral)):
-        amp_emo = np.mean(epochs_emo[i][epn_begin:epn_end])
-        amp_neutral = np.mean(epochs_neutral[i][epn_begin:epn_end])
-        epn_amps_emo.append(amp_emo)
-        epn_amps_neutral.append(amp_neutral)
-        csv_writers['epn_amplitudes'].writerow([amp_emo, amp_neutral])
-
-    # Draw and save ERP plots
-    plt.figure(figsize=(8.5, 5.5))
-    plt.title(electrode, fontsize=12)
-    plt.axvspan(240, 340, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
-    neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='#505050', linewidth=2)
-    emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo,
-                             color='k', linewidth=2, linestyle='dashed')
-    plt.axvline(0, color='k', linewidth=1)
-    plt.text(270, -15, 'EPN', fontsize=16)
-    plt.axhline(0, color='k', linewidth=1)
-    plt.xlabel('Latency (ms)', fontsize=12)
-    plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
-    plt.xlim([-100, 500])
-    plt.ylim([-16.5, 10])
-    plt.yticks(np.arange(-15.0, 10.1, 5))
-    plt.tight_layout()
-    plt.legend(handles=[neutral_plot, emotion_plot],
-               labels=['Neutral', 'Emotional'], fontsize=12)
-    if invert_y_axis:
-        plt.gca().invert_yaxis()
-
-    figure_file_all = os.path.join(figures_dir, 'all', electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on * low_cutoff)) + '_' + str(int(filter_on * high_cutoff)) + 'Hz_' + suffix)
-    plt.savefig(figure_file_all + '.png')
-    plt.savefig(figure_file_all + '.eps')
-    #plt.show()
+# for electrode in electrodes_to_analyze:
+#     print(electrode)
+#
+#     #TODO: use dictionary
+#     epochs_emo = extracted_epochs_emo[electrode]
+#     epochs_neutral = extracted_epochs_neutral[electrode]
+#
+#     num_emo = len(epochs_emo)
+#     num_neutral = len(epochs_neutral)
+#     print(num_emo, num_neutral)
+#
+#     if num_emo == 0 or num_neutral == 0:
+#         continue
+#
+#     # # Grand-average over all epochs
+#     # # Classic method
+#     # averaged_emo = np.mean(epochs_emo, axis=0)
+#     # averaged_neutral = np.mean(epochs_neutral, axis=0)
+#
+#     # # RWA absolute
+#     # averaged_emo = rwa.robust_weighted_averaging_absolute(epochs_emo)
+#     # averaged_neutral = rwa.robust_weighted_averaging_absolute(epochs_neutral)
+#
+#     # # RWA quadratic
+#     # averaged_emo = rwa.robust_weighted_averaging_quadratic(epochs_emo)
+#     # averaged_neutral = rwa.robust_weighted_averaging_quadratic(epochs_neutral)
+#
+#     # change voltage scale as difference from baseline
+#     averaged_emo -= np.mean(averaged_emo[:pre_stimuli + 1])
+#     averaged_neutral -= np.mean(averaged_neutral[:pre_stimuli + 1])
+#
+#     # plt.figure(figsize=(6.5, 5.5))
+#     # plt.title(electrode, fontsize=12)
+#     # acc_mean = []
+#     # for i, epoch in enumerate(np.array(extracted_epochs_emo[electrode])[[1,3,10,11,13,17,20,24]]):
+#     #     acc_mean.append(epoch)
+#     #     #plt.plot((epoch - np.mean(epoch))/np.std(epoch), linewidth=1, color='k', alpha=0.7)
+#     #     plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), epoch, linewidth=1, color='k', linestyle='dashed')
+#     #
+#     # # for i, epoch in enumerate(np.array(extracted_epochs_neutral[electrode])[[1,3,10,11,13,17,20,24]]):
+#     # #     acc_mean.append(epoch)
+#     # #     #plt.plot((epoch - np.mean(epoch))/np.std(epoch), linewidth=1, color='k', alpha=0.7)
+#     # #     plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), epoch, linewidth=1, color='k')
+#     #
+#     # acc_mean = np.mean(acc_mean, axis=0)
+#     # plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), acc_mean, linewidth=3, color='k')
+#     #
+#     # plt.xlabel('Latency (ms)', fontsize=12)
+#     # plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
+#     # plt.xticks(fontsize=12)
+#     # plt.yticks(fontsize=12)
+#     # plt.xlim([-100, 500])
+#     # plt.ylim([-21, 12])
+#     # plt.yticks(np.arange(-20.0, 15.1, 5))
+#     # plt.tight_layout()
+#     # plt.show()
+#
+#
+#     print(np.mean(averaged_emo[epn_begin:epn_end]), np.mean(averaged_neutral[epn_begin:epn_end]), np.mean(averaged_neutral[epn_begin:epn_end]) - np.mean(averaged_emo[epn_begin:epn_end]))
+#
+#     # Fill csv logs for statistical analysis
+#     # ANOVAs calculated using: http://vassarstats.net/anova1u.html
+#     for i in range(min(num_emo, num_neutral)):
+#         amp_emo = (np.argmin(epochs_emo[i][n170_begin:n170_end]) + n170_begin)
+#         amp_neutral = (np.argmin(epochs_neutral[i][n170_begin:n170_end]) + n170_begin)
+#         lats_emo.append(amp_emo)
+#         lats_neutral.append(amp_neutral)
+#         csv_writers['latencies'].writerow([amp_emo, amp_neutral])
+#
+#     csv_writers['n170_amplitudes'].writerow(['c']*20)
+#     csv_writers['n170_amplitudes'].writerow([electrode])
+#     for i in range(min(num_emo, num_neutral)):
+#         amp_emo = np.min(epochs_emo[i][n170_begin:n170_end])
+#         amp_neutral = np.min(epochs_neutral[i][n170_begin:n170_end])
+#         n170_amps_emo.append(amp_emo)
+#         n170_amps_neutral.append(amp_neutral)
+#         csv_writers['n170_amplitudes'].writerow([amp_emo, amp_neutral])
+#
+#     csv_writers['epn_amplitudes'].writerow(['c'] * 20)
+#     csv_writers['epn_amplitudes'].writerow([electrode])
+#     for i in range(min(num_emo, num_neutral)):
+#         amp_emo = np.mean(epochs_emo[i][epn_begin:epn_end])
+#         amp_neutral = np.mean(epochs_neutral[i][epn_begin:epn_end])
+#         epn_amps_emo.append(amp_emo)
+#         epn_amps_neutral.append(amp_neutral)
+#         csv_writers['epn_amplitudes'].writerow([amp_emo, amp_neutral])
+#
+#     # Draw and save ERP plots
+#     plt.figure(figsize=(8.5, 5.5))
+#     plt.title(electrode, fontsize=12)
+#     plt.axvspan(240, 340, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
+#     neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='#505050', linewidth=2)
+#     emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo,
+#                              color='k', linewidth=2, linestyle='dashed')
+#     plt.axvline(0, color='k', linewidth=1)
+#     plt.text(270, -15, 'EPN', fontsize=16)
+#     plt.axhline(0, color='k', linewidth=1)
+#     plt.xlabel('Latency (ms)', fontsize=12)
+#     plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
+#     plt.xticks(fontsize=12)
+#     plt.yticks(fontsize=12)
+#     # plt.xlim([-100, 500])
+#     # plt.ylim([-16.5, 10])
+#     plt.yticks(np.arange(-15.0, 10.1, 5))
+#     plt.tight_layout()
+#     plt.legend(handles=[neutral_plot, emotion_plot],
+#                labels=['Neutral', 'Emotional'], fontsize=12)
+#     if invert_y_axis:
+#         plt.gca().invert_yaxis()
+#
+#     figure_file_all = os.path.join(figures_dir, 'all', electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on * low_cutoff)) + '_' + str(int(filter_on * high_cutoff)) + 'Hz_' + suffix)
+#     plt.savefig(figure_file_all + '.png')
+#     #plt.show()
