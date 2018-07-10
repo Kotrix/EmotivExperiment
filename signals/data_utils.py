@@ -177,18 +177,31 @@ def plot_database(database, file=None):
             #plt.grid()
             plt.show()
 
-def extracted_epochs_to_ndarray(orderedDict: OrderedDict):
-    stimuliMaxIter = 213
-    resultArr = np.zeros((4, 78, stimuliMaxIter))
+def extracted_epochs_to_ndarray(extractedEpochs: OrderedDict):
+    numOfStimuli, numOfChannels, epochsLength = _extracted_epochs_size(extractedEpochs)
+    resultArr = np.zeros((numOfChannels, epochsLength, numOfStimuli))
     electrodeIter = 0
-    for electrode in orderedDict:
-        channel = orderedDict[electrode]
+    for electrode in extractedEpochs:
+        channel = extractedEpochs[electrode]
         stimuliIter = 0
         for stimuli in channel:
             resultArr[electrodeIter, :, stimuliIter] = stimuli
             stimuliIter += 1
-            if (stimuliIter == stimuliMaxIter):
+            if (stimuliIter == numOfStimuli):
                 break
         electrodeIter += 1
 
     return resultArr
+
+def _extracted_epochs_size(extractedEpochs: OrderedDict):
+    numOfStimuli = float('inf')
+    numOfChannels = len(extractedEpochs)
+    epochsLength = 0
+    for electrode in extractedEpochs:
+        stimuli = extractedEpochs[electrode]
+        if len(stimuli) < numOfStimuli:
+            numOfStimuli = len(stimuli)
+
+        epochsLength = len(stimuli[0])
+
+    return numOfStimuli, numOfChannels, epochsLength
