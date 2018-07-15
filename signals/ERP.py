@@ -7,7 +7,7 @@ import scipy
 # person_id = 1
 for person_id in range(1,11):
     database_regex = 'csv/'+ str(person_id if person_id > 0 else '*') + '/record-F*.csv'
-    suffix = 'GW6'
+    suffix = 'CLASSIC'
 
     triggering_electrode = 'F7'
     electrodes_to_analyze = ['P7','O1','O2','P8']
@@ -24,8 +24,10 @@ for person_id in range(1,11):
     trigger_high_cutoff = 15
 
     # Define pre and post stimuli period of epoch (in seconds)
-    pre_stimuli = time2sample(1)
-    post_stimuli = time2sample(1)
+    pre_stimuli = time2sample(0.1)
+    post_stimuli = time2sample(0.5)
+    # pre_stimuli = time2sample(1)
+    # post_stimuli = time2sample(1)
 
     # Define threshold for trigger signal
     max_trigger_peak_width = time2sample(2) # in seconds
@@ -126,6 +128,7 @@ for person_id in range(1,11):
         for filename in corrupted_files:
             database.pop(filename, None)
 
+
     ######### EXTRACT EPOCHS OF SIGNAL AFTER STIMULI ##################
 
     # face IDs based on eperimental setup in OpenViBE
@@ -148,14 +151,30 @@ for person_id in range(1,11):
             return True
         return False
 
+    averaged_data = OrderedDict()
+
+    for filename, record in database.items():
+        averaged_data[filename] = list()
+
+        data = np.ndarray((4, len(record['signals']['P7'])))
+        i = 0
+        for electrode in electrodes_to_analyze:
+            data[i,:] = record['signals'][electrode]
+            i += 1
+
+        # RWA absolute
+        # averaged_data[filename] = rwa.robust_weighted_averaging_absolute(data)
+        averaged_data[filename] = rwa.robust_weighted_averaging_quadratic(data)
+        # averaged_data[filename] = np.mean((data), axis=0)
+
+
+
     # Init container for ERP epochs
-    extracted_epochs_emo = OrderedDict()
-    extracted_epochs_neutral = OrderedDict()
+    extracted_epochs_emo = list()
+    extracted_epochs_neutral = list()
     wrong_range = OrderedDict()
     wrong_peak = OrderedDict()
     for e in electrodes_to_analyze:
-        extracted_epochs_emo[e] = list()
-        extracted_epochs_neutral[e] = list()
         wrong_range[e] = 0
         wrong_peak[e] = 0
 
@@ -234,30 +253,6 @@ for person_id in range(1,11):
                         all_responses -= 1
                         continue
 
-                    #Plot trigger synchronization timestamps
-                    # plt.figure()
-                    # x_val = np.multiply(np.arange(len(trigger_signal[stimuli_index - margin:stimuli_index + margin + 1])),
-                    #                     1000 / fs)
-                    # raw, = plt.plot(x_val, raw_trigger_signal[stimuli_index - margin:stimuli_index + margin + 1], 'k-',
-                    #                 linewidth=2, marker='o', markersize=3)
-                    # diff, = plt.plot(x_val, trigger_signal[stimuli_index - margin:stimuli_index + margin + 1], 'k-',
-                    #                  linewidth=2, linestyle='dashed')
-                    # plt.axvline(1000 * (margin + 4) / fs, color='k')
-                    # plt.axvline(1000 * (margin+1) / fs, color='k', linestyle='dotted')
-                    # plt.axhline(trigger_threshold, color='k')
-                    # plt.arrow(1000 * (margin + 4) / fs, 500, -3000 / fs + 6, 0, head_width=60, head_length=6, fc='k',
-                    #           ec='k', linestyle='dotted')
-                    # plt.xlim([1000 * margin / fs - 30, 1000 * margin / fs + 80])
-                    # plt.xlabel('Time (ms)', fontsize=12)
-                    # # plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
-                    # plt.xticks(fontsize=12)
-                    # plt.yticks([], fontsize=12)
-                    # plt.tight_layout()
-                    # # plt.legend(handles=[raw, diff],
-                    # #            labels=['Triggering signal', '2nd-order central diff.'], fontsize=12)
-                    # # plt.grid()
-                    # plt.show()
-
                     try:
                         true_timestamps.append(record['timestamps'][stimuli_index])
                         openvibe_timestamps.append(record['order'][trigger_iter][1])
@@ -265,86 +260,69 @@ for person_id in range(1,11):
                         pass
 
                     # Save epoch
-                    for electrode, signal in record['signals'].items():
-                        if stimuli_index - pre_stimuli < 0 or stimuli_index + post_stimuli > len(signal):
+                    for filename in averaged_data:
+                        if stimuli_index - pre_stimuli < 0 or stimuli_index + post_stimuli > len(averaged_data[filename]):
                             all_responses -= 1
                             break
-                        if electrode in electrodes_to_analyze:
-                            epoch = signal[stimuli_index - pre_stimuli:stimuli_index + post_stimuli + 1]
-                            org_epoch = org_database[filename]['signals'][electrode][stimuli_index - pre_stimuli:stimuli_index + post_stimuli + 1]
-                            epoch_max = np.max(epoch)
-                            epoch_min = np.min(epoch)
-                            epoch_peak_to_peak = epoch_max - epoch_min
 
-                            if trigger_iter < 0:
-                                # Draw and save single epochs
-                                plt.figure()
-                                plt.title(electrode)
-                                plt.plot(((np.array(range(len(epoch)))) - pre_stimuli) / fs, epoch, 'g-', linewidth=1)
-                                plt.axvline(0, color='k', linestyle='dashed')
-                                plt.axvline(0.17, color='b', linestyle='dashed')
-                                plt.xlabel('Time [s]')
-                                plt.ylabel('uV')
-                                plt.grid()
-                                plt.savefig(os.path.join(figures_dir, basename(filename), 'epochs', electrode+'_'+str(trigger_iter)+ ('_common' if common_avg_ref else '_org') +'.png'))
-                                plt.close()
+                        epoch = averaged_data[filename][stimuli_index - pre_stimuli:stimuli_index + post_stimuli + 1]
+                        epoch_max = np.max(epoch)
+                        epoch_min = np.min(epoch)
+                        epoch_peak_to_peak = epoch_max - epoch_min
 
-                            if epoch_peak_to_peak > epoch_max_peak_to_peak:
-                                epoch_writers['Max_peak' + electrode].writerow(org_epoch)
-                                wrong_range[electrode] += 1
-                                continue
+                        if epoch_peak_to_peak > epoch_max_peak_to_peak:
+                            wrong_range[electrode] += 1
+                            continue
 
-                            if peak_filtering:
-                                def inv_ric(points, a):
-                                    return -scipy.signal.ricker(points, a)
+                        if peak_filtering:
+                            def inv_ric(points, a):
+                                return -scipy.signal.ricker(points, a)
 
-                                widths = 0.5 * np.arange(2, 11)
-                                cwtmatr = scipy.signal.cwt(epoch, inv_ric, widths)
-                                peak_point = pre_stimuli + time2sample(0.16)
-                                peak_score = np.mean(cwtmatr[:, peak_point-1:peak_point+4])
 
-                                # if peak_score < min_peak_score:
-                                #
-                                #     plt.figure()
-                                #     plt.title('Condition: ' + str(peak_score), fontsize=14)
-                                #     plt.imshow(cwtmatr, extent=[-100, 500, epoch.min(), epoch.max()], cmap='gray', aspect='auto',
-                                #                vmax=abs(cwtmatr).max(), vmin=-abs(cwtmatr).max(), alpha=0.7)
-                                #     plt.xticks(fontsize=14)
-                                #     plt.yticks(fontsize=14)
-                                #     plt.xlabel('Latency (ms)', fontsize=12)
-                                #     plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
-                                #     plt.ylim([epoch.min(), epoch.max()])
-                                #     #plt.twinx()
-                                #     plt.plot(
-                                #         np.multiply(np.arange(len(epoch)) - pre_stimuli, 1000 / fs),
-                                #         epoch, 'k-', linewidth=3, linestyle='dashed')
-                                #     plt.axvline(1000*sample2time(peak_point-1-pre_stimuli), color='k', linestyle='dashed', linewidth=2)
-                                #     plt.axvline(1000*sample2time(peak_point+3-pre_stimuli), color='k', linestyle='dashed', linewidth=2)
-                                #     #plt.xticks(fontsize=14)
-                                #     #plt.yticks(epoch.min() + (np.arange(9)) * (epoch.max() - epoch.min()) / 9 + (epoch.max() - epoch.min()) / 18, widths, fontsize=14)
-                                #     #plt.ylabel('Wavelet width', fontsize=12)
-                                #     plt.xlim([-100, 500])
-                                #     plt.ylim([epoch.min(), epoch.max()])
-                                #     plt.tight_layout()
-                                #     plt.show()
+                            widths = 0.5 * np.arange(2, 11)
+                            cwtmatr = scipy.signal.cwt(epoch, inv_ric, widths)
+                            peak_point = pre_stimuli + time2sample(0.16)
+                            peak_score = np.mean(cwtmatr[:, peak_point - 1:peak_point + 4])
+
+                            # if peak_score < min_peak_score:
+                            #
+                            #     plt.figure()
+                            #     plt.title('Condition: ' + str(peak_score), fontsize=14)
+                            #     plt.imshow(cwtmatr, extent=[-100, 500, epoch.min(), epoch.max()], cmap='gray', aspect='auto',
+                            #                vmax=abs(cwtmatr).max(), vmin=-abs(cwtmatr).max(), alpha=0.7)
+                            #     plt.xticks(fontsize=14)
+                            #     plt.yticks(fontsize=14)
+                            #     plt.xlabel('Latency (ms)', fontsize=12)
+                            #     plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
+                            #     plt.ylim([epoch.min(), epoch.max()])
+                            #     #plt.twinx()
+                            #     plt.plot(
+                            #         np.multiply(np.arange(len(epoch)) - pre_stimuli, 1000 / fs),
+                            #         epoch, 'k-', linewidth=3, linestyle='dashed')
+                            #     plt.axvline(1000*sample2time(peak_point-1-pre_stimuli), color='k', linestyle='dashed', linewidth=2)
+                            #     plt.axvline(1000*sample2time(peak_point+3-pre_stimuli), color='k', linestyle='dashed', linewidth=2)
+                            #     #plt.xticks(fontsize=14)
+                            #     #plt.yticks(epoch.min() + (np.arange(9)) * (epoch.max() - epoch.min()) / 9 + (epoch.max() - epoch.min()) / 18, widths, fontsize=14)
+                            #     #plt.ylabel('Wavelet width', fontsize=12)
+                            #     plt.xlim([-100, 500])
+                            #     plt.ylim([epoch.min(), epoch.max()])
+                            #     plt.tight_layout()
+                            #     plt.show()
+                        else:
+                            peak_score = min_peak_score + 1
+
+                        if peak_score < min_peak_score:
+                            wrong_peak[electrode] += 1
+                            continue
+
+                        # Collect correct epochs
+                        try:
+                            if len(record['order']) > 0 and is_face_emotional(face_id):
+                                extracted_epochs_emo.append(epoch)
                             else:
-                                peak_score = min_peak_score + 1
-
-                            if peak_score < min_peak_score:
-                                epoch_writers['No_peak' + electrode].writerow(org_epoch)
-                                wrong_peak[electrode] += 1
-                                continue
-
-                            # Collect correct epochs
-                            epoch_writers['OK' + electrode].writerow(org_epoch)
-                            try:
-                                if len(record['order']) > 0 and is_face_emotional(face_id):
-                                    extracted_epochs_emo[electrode].append(epoch)
-                                else:
-                                    extracted_epochs_neutral[electrode].append(epoch)
-                            except:
-                                pass
-
+                                extracted_epochs_neutral.append(epoch)
+                        except:
+                            pass
                 else:
                     face_id = record['order'][trigger_iter][0]
                     if is_face_emotional(face_id):
@@ -388,148 +366,120 @@ for person_id in range(1,11):
     epn_amps_emo = []
     epn_amps_neutral = []
 
-    # GW6
-    averaged_emo, averaged_emo_by_channel = gw6.GW6(extracted_epochs_to_ndarray(extracted_epochs_emo))
-    averaged_neutral, averaged_neutral_by_channel = gw6.GW6(extracted_epochs_to_ndarray(extracted_epochs_neutral))
+    # # GW6
+    # averaged_emo, averaged_emo_by_channel = gw6.GW6(extracted_epochs_to_ndarray(extracted_epochs_emo))
+    # averaged_neutral, averaged_neutral_by_channel = gw6.GW6(extracted_epochs_to_ndarray(extracted_epochs_neutral))
+    #
+    # # for channel in range(len(electrodes_to_analyze)):
+    # # Draw and save ERP plots
+    # plt.figure(figsize=(8.5, 5.5))
+    # plt.title('GW6', fontsize=12)
+    # plt.axvspan(240, 340, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
+    # neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral,
+    #                          color='#505050', linewidth=2)
+    # emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo,
+    #                          color='k', linewidth=2, linestyle='dashed')
+    # plt.axvline(0, color='k', linewidth=1)
+    # plt.text(270, -15, 'EPN', fontsize=16)
+    # plt.axhline(0, color='k', linewidth=1)
+    # plt.xlabel('Latency (ms)', fontsize=12)
+    # plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
+    # plt.xticks(fontsize=12)
+    # plt.yticks(fontsize=12)
+    # # plt.xlim([-100, 500])
+    # # plt.ylim([-16.5, 10])
+    # # plt.yticks(np.arange(-15.0, 10.1, 5))
+    # plt.tight_layout()
+    # plt.legend(handles=[neutral_plot, emotion_plot],
+    #            labels=['Neutral', 'Emotional'], fontsize=12)
+    # if invert_y_axis:
+    #     plt.gca().invert_yaxis()
+    #
+    # figure_file_all = os.path.join(figures_dir, 'all',str(person_id) + '_' + 'all' + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on * low_cutoff)) + '_' + str(int(filter_on * high_cutoff)) + 'Hz_' +  suffix)
+    # plt.savefig(figure_file_all + '.png')
+    # plt.close()
 
-    for channel in range(len(electrodes_to_analyze)):
-        # Draw and save ERP plots
-        plt.figure(figsize=(8.5, 5.5))
-        plt.title('GW6', fontsize=12)
-        plt.axvspan(240, 340, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
-        neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral_by_channel[channel, :])) - pre_stimuli, 1000 / fs), averaged_neutral_by_channel[channel, :],
-                                 color='#505050', linewidth=2)
-        emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo_by_channel[channel, :])) - pre_stimuli, 1000 / fs), averaged_emo_by_channel[channel, :],
-                                 color='k', linewidth=2, linestyle='dashed')
-        plt.axvline(0, color='k', linewidth=1)
-        plt.text(270, -15, 'EPN', fontsize=16)
-        plt.axhline(0, color='k', linewidth=1)
-        plt.xlabel('Latency (ms)', fontsize=12)
-        plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
-        plt.xticks(fontsize=12)
-        plt.yticks(fontsize=12)
-        # plt.xlim([-100, 500])
-        # plt.ylim([-16.5, 10])
-        # plt.yticks(np.arange(-15.0, 10.1, 5))
-        plt.tight_layout()
-        plt.legend(handles=[neutral_plot, emotion_plot],
-                   labels=['Neutral', 'Emotional'], fontsize=12)
-        if invert_y_axis:
-            plt.gca().invert_yaxis()
 
-        figure_file_all = os.path.join(figures_dir, 'all', electrodes_to_analyze[channel] + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on * low_cutoff)) + '_' + str(int(filter_on * high_cutoff)) + 'Hz_' + str(person_id) + suffix)
-        plt.savefig(figure_file_all + '.png')
+    #TODO: use dictionary
+    epochs_emo = extracted_epochs_emo
+    epochs_neutral = extracted_epochs_neutral
 
-    # for electrode in electrodes_to_analyze:
-    #     print(electrode)
+    num_emo = len(epochs_emo)
+    num_neutral = len(epochs_neutral)
+    print(num_emo, num_neutral)
+
+    if num_emo == 0 or num_neutral == 0:
+        continue
+
+    # # Grand-average over all epochs
+    # Classic method
+    averaged_emo = np.mean(epochs_emo, axis=0)
+    averaged_neutral = np.mean(epochs_neutral, axis=0)
+
+    # # RWA absolute
+    # averaged_emo = rwa.robust_weighted_averaging_absolute(epochs_emo)
+    # averaged_neutral = rwa.robust_weighted_averaging_absolute(epochs_neutral)
     #
-    #     #TODO: use dictionary
-    #     epochs_emo = extracted_epochs_emo[electrode]
-    #     epochs_neutral = extracted_epochs_neutral[electrode]
+    # # RWA quadratic
+    # averaged_emo = rwa.robust_weighted_averaging_quadratic(epochs_emo)
+    # averaged_neutral = rwa.robust_weighted_averaging_quadratic(epochs_neutral)
+
+    # # change voltage scale as difference from baseline
+    # averaged_emo -= np.mean(averaged_emo[:pre_stimuli + 1])
+    # averaged_neutral -= np.mean(averaged_neutral[:pre_stimuli + 1])
+
+    # plt.figure(figsize=(6.5, 5.5))
+    # plt.title(electrode, fontsize=12)
+    # acc_mean = []
+    # for i, epoch in enumerate(np.array(extracted_epochs_emo[electrode])[[1,3,10,11,13,17,20,24]]):
+    #     acc_mean.append(epoch)
+    #     #plt.plot((epoch - np.mean(epoch))/np.std(epoch), linewidth=1, color='k', alpha=0.7)
+    #     plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), epoch, linewidth=1, color='k', linestyle='dashed')
     #
-    #     num_emo = len(epochs_emo)
-    #     num_neutral = len(epochs_neutral)
-    #     print(num_emo, num_neutral)
+    # # for i, epoch in enumerate(np.array(extracted_epochs_neutral[electrode])[[1,3,10,11,13,17,20,24]]):
+    # #     acc_mean.append(epoch)
+    # #     #plt.plot((epoch - np.mean(epoch))/np.std(epoch), linewidth=1, color='k', alpha=0.7)
+    # #     plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), epoch, linewidth=1, color='k')
     #
-    #     if num_emo == 0 or num_neutral == 0:
-    #         continue
+    # acc_mean = np.mean(acc_mean, axis=0)
+    # plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), acc_mean, linewidth=3, color='k')
     #
-    #     # # Grand-average over all epochs
-    #     # # Classic method
-    #     # averaged_emo = np.mean(epochs_emo, axis=0)
-    #     # averaged_neutral = np.mean(epochs_neutral, axis=0)
-    #
-    #     # # RWA absolute
-    #     # averaged_emo = rwa.robust_weighted_averaging_absolute(epochs_emo)
-    #     # averaged_neutral = rwa.robust_weighted_averaging_absolute(epochs_neutral)
-    #
-    #     # # RWA quadratic
-    #     # averaged_emo = rwa.robust_weighted_averaging_quadratic(epochs_emo)
-    #     # averaged_neutral = rwa.robust_weighted_averaging_quadratic(epochs_neutral)
-    #
-    #     # change voltage scale as difference from baseline
-    #     averaged_emo -= np.mean(averaged_emo[:pre_stimuli + 1])
-    #     averaged_neutral -= np.mean(averaged_neutral[:pre_stimuli + 1])
-    #
-    #     # plt.figure(figsize=(6.5, 5.5))
-    #     # plt.title(electrode, fontsize=12)
-    #     # acc_mean = []
-    #     # for i, epoch in enumerate(np.array(extracted_epochs_emo[electrode])[[1,3,10,11,13,17,20,24]]):
-    #     #     acc_mean.append(epoch)
-    #     #     #plt.plot((epoch - np.mean(epoch))/np.std(epoch), linewidth=1, color='k', alpha=0.7)
-    #     #     plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), epoch, linewidth=1, color='k', linestyle='dashed')
-    #     #
-    #     # # for i, epoch in enumerate(np.array(extracted_epochs_neutral[electrode])[[1,3,10,11,13,17,20,24]]):
-    #     # #     acc_mean.append(epoch)
-    #     # #     #plt.plot((epoch - np.mean(epoch))/np.std(epoch), linewidth=1, color='k', alpha=0.7)
-    #     # #     plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), epoch, linewidth=1, color='k')
-    #     #
-    #     # acc_mean = np.mean(acc_mean, axis=0)
-    #     # plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), acc_mean, linewidth=3, color='k')
-    #     #
-    #     # plt.xlabel('Latency (ms)', fontsize=12)
-    #     # plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
-    #     # plt.xticks(fontsize=12)
-    #     # plt.yticks(fontsize=12)
-    #     # plt.xlim([-100, 500])
-    #     # plt.ylim([-21, 12])
-    #     # plt.yticks(np.arange(-20.0, 15.1, 5))
-    #     # plt.tight_layout()
-    #     # plt.show()
-    #
-    #
-    #     print(np.mean(averaged_emo[epn_begin:epn_end]), np.mean(averaged_neutral[epn_begin:epn_end]), np.mean(averaged_neutral[epn_begin:epn_end]) - np.mean(averaged_emo[epn_begin:epn_end]))
-    #
-    #     # Fill csv logs for statistical analysis
-    #     # ANOVAs calculated using: http://vassarstats.net/anova1u.html
-    #     for i in range(min(num_emo, num_neutral)):
-    #         amp_emo = (np.argmin(epochs_emo[i][n170_begin:n170_end]) + n170_begin)
-    #         amp_neutral = (np.argmin(epochs_neutral[i][n170_begin:n170_end]) + n170_begin)
-    #         lats_emo.append(amp_emo)
-    #         lats_neutral.append(amp_neutral)
-    #         csv_writers['latencies'].writerow([amp_emo, amp_neutral])
-    #
-    #     csv_writers['n170_amplitudes'].writerow(['c']*20)
-    #     csv_writers['n170_amplitudes'].writerow([electrode])
-    #     for i in range(min(num_emo, num_neutral)):
-    #         amp_emo = np.min(epochs_emo[i][n170_begin:n170_end])
-    #         amp_neutral = np.min(epochs_neutral[i][n170_begin:n170_end])
-    #         n170_amps_emo.append(amp_emo)
-    #         n170_amps_neutral.append(amp_neutral)
-    #         csv_writers['n170_amplitudes'].writerow([amp_emo, amp_neutral])
-    #
-    #     csv_writers['epn_amplitudes'].writerow(['c'] * 20)
-    #     csv_writers['epn_amplitudes'].writerow([electrode])
-    #     for i in range(min(num_emo, num_neutral)):
-    #         amp_emo = np.mean(epochs_emo[i][epn_begin:epn_end])
-    #         amp_neutral = np.mean(epochs_neutral[i][epn_begin:epn_end])
-    #         epn_amps_emo.append(amp_emo)
-    #         epn_amps_neutral.append(amp_neutral)
-    #         csv_writers['epn_amplitudes'].writerow([amp_emo, amp_neutral])
-    #
-    #     # Draw and save ERP plots
-    #     plt.figure(figsize=(8.5, 5.5))
-    #     plt.title(electrode, fontsize=12)
-    #     plt.axvspan(240, 340, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
-    #     neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='#505050', linewidth=2)
-    #     emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo,
-    #                              color='k', linewidth=2, linestyle='dashed')
-    #     plt.axvline(0, color='k', linewidth=1)
-    #     plt.text(270, -15, 'EPN', fontsize=16)
-    #     plt.axhline(0, color='k', linewidth=1)
-    #     plt.xlabel('Latency (ms)', fontsize=12)
-    #     plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
-    #     plt.xticks(fontsize=12)
-    #     plt.yticks(fontsize=12)
-    #     # plt.xlim([-100, 500])
-    #     # plt.ylim([-16.5, 10])
-    #     plt.yticks(np.arange(-15.0, 10.1, 5))
-    #     plt.tight_layout()
-    #     plt.legend(handles=[neutral_plot, emotion_plot],
-    #                labels=['Neutral', 'Emotional'], fontsize=12)
-    #     if invert_y_axis:
-    #         plt.gca().invert_yaxis()
-    #
-    #     figure_file_all = os.path.join(figures_dir, 'all', electrode + ('_common_' if common_avg_ref else '_org_') + str(int(filter_on * low_cutoff)) + '_' + str(int(filter_on * high_cutoff)) + 'Hz_' + suffix)
-    #     plt.savefig(figure_file_all + '.png')
-    #     #plt.show()
+    # plt.xlabel('Latency (ms)', fontsize=12)
+    # plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
+    # plt.xticks(fontsize=12)
+    # plt.yticks(fontsize=12)
+    # plt.xlim([-100, 500])
+    # plt.ylim([-21, 12])
+    # plt.yticks(np.arange(-20.0, 15.1, 5))
+    # plt.tight_layout()
+    # plt.show()
+
+
+    # Draw and save ERP plots
+    plt.figure(figsize=(8.5, 5.5))
+    plt.title(electrode, fontsize=12)
+    plt.axvspan(240, 340, facecolor='#E0E0E0', edgecolor='#E0E0E0', alpha=0.5)
+    neutral_plot, = plt.plot(np.multiply(np.arange(len(averaged_neutral)) - pre_stimuli, 1000 / fs), averaged_neutral, color='#505050', linewidth=2)
+    emotion_plot, = plt.plot(np.multiply(np.arange(len(averaged_emo)) - pre_stimuli, 1000 / fs), averaged_emo,
+                             color='k', linewidth=2, linestyle='dashed')
+    plt.axvline(0, color='k', linewidth=1)
+    plt.text(270, -15, 'EPN', fontsize=16)
+    plt.axhline(0, color='k', linewidth=1)
+    plt.xlabel('Latency (ms)', fontsize=12)
+    plt.ylabel('Amplitude ($\mu$V)', fontsize=12)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    # plt.xlim([-100, 500])
+    # plt.ylim([-16.5, 10])
+    plt.yticks(np.arange(-15.0, 10.1, 5))
+    plt.tight_layout()
+    plt.legend(handles=[neutral_plot, emotion_plot],
+               labels=['Neutral', 'Emotional'], fontsize=12)
+    if invert_y_axis:
+        plt.gca().invert_yaxis()
+
+    figure_file_all = os.path.join(figures_dir, 'all', str(person_id) + '_' + electrode + ('_common_' if common_avg_ref else '_org_') +
+                                   str(int(filter_on * low_cutoff)) + '_' + str(int(filter_on * high_cutoff)) + 'Hz_' + suffix)
+    plt.savefig(figure_file_all + '.png')
+    #plt.show()
+    plt.close()
