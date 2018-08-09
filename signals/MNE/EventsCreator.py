@@ -1,24 +1,22 @@
 import numpy as np
-from MNE_utils import *
+from Time import *
 
 
 class EventsCreator:
 
-    @staticmethod
-    def create(raw_trigger_signal: np.ndarray, responses: list):
-        events_list = np.zeros((len(responses), 3))
+    def create(self, raw_trigger_signal: np.ndarray, responses: list):
+        events_list = list()  # np.zeros((len(responses), 3))
 
         # Define threshold for trigger signal
-        max_trigger_peak_width = time2sample(2)  # in seconds
+        max_trigger_peak_width = Time.to_sample(2)  # in seconds
 
         trigger_signal = np.gradient(raw_trigger_signal)
 
-        trigger_threshold = EventsCreator._count_treshold(raw_trigger_signal, len(responses))
+        trigger_threshold = self._count_treshold(raw_trigger_signal, len(responses))
 
         # Find next stimuli start and save related epoch for every electrode
         i = 0
         trigger_iter = 0
-        iter = 0
         while i < len(trigger_signal):
             if raw_trigger_signal[i] < trigger_threshold:
                 try:
@@ -39,18 +37,27 @@ class EventsCreator:
                         trigger_iter += 1
                         continue
 
-                events_list[iter, :] = [stimuli_index, 0, 1]
+                events_list.append([stimuli_index, 0, 1])
 
                 i += max_trigger_peak_width
                 trigger_iter += 1
-                iter += 1
             else:
                 i += 1
 
-        return np.unique(events_list.astype(int), axis=0)
+        return self._sorted_and_distinct_events(events_list)
 
-    @staticmethod
-    def _count_treshold(raw_trigger_signal: np.ndarray, responses_length: int):
+    def _sorted_and_distinct_events(self, events_list: list):
+        return self._unique_events(self._sort_events(events_list))
+
+    def _unique_events(self, sorted_events: np.ndarray):
+        u, ind = np.unique(sorted_events, return_index=True, axis=0)
+        return u[np.argsort(ind)]
+
+    def _sort_events(self, events_list: set):
+        events_list.sort(key=lambda x: x[0])
+        return np.asarray(events_list)
+
+    def _count_treshold(self, raw_trigger_signal: np.ndarray, responses_length: int):
         sorted_raw_trigger_signal = np.sort(raw_trigger_signal)
         begin_raw_trigger_signal_median = np.median(sorted_raw_trigger_signal[:responses_length])
 
