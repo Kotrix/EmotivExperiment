@@ -15,7 +15,7 @@ class EventsCreator:
         trigger_threshold = self._count_treshold(raw_trigger_signal, len(responses))
 
         # Find next stimuli start and save related epoch for every electrode
-        i = 0
+        i = Time.to_sample(responses[0][1])
         trigger_iter = 0
         while i < len(trigger_signal):
             if raw_trigger_signal[i] < trigger_threshold:
@@ -37,7 +37,7 @@ class EventsCreator:
                         trigger_iter += 1
                         continue
 
-                events_list.append([stimuli_index, 0, 1])
+                    events_list.append([stimuli_index, 0, 1])
 
                 i += max_trigger_peak_width
                 trigger_iter += 1
