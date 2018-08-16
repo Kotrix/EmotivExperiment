@@ -30,7 +30,6 @@ class DataOrganizer:
         return raw
 
     def _filter_raw(self, raw: mne.io.Raw):
-        raw.notch_filter([50, 60])
         raw.filter(1., 15, n_jobs=1, fir_design='firwin')
 
     def _create_events(self):
