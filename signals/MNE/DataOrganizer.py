@@ -18,11 +18,11 @@ class DataOrganizer:
         # Initialize an info structure
         info = mne.create_info(
             ch_names=self._all_channels_to_analyze,
-            ch_types=["eeg"] * len(self._all_channels_to_analyze),
+            ch_types="eeg",
             sfreq=128,
             montage='standard_1020')
 
-        raw = mne.io.RawArray(self._eeg_data.get_by_column_names(self._all_channels_to_analyze), info)
+        raw = mne.io.RawArray(self._eeg_data.get_by_column_names(self._all_channels_to_analyze), info, first_samp=self._eeg_data.experiment_start_index)
         raw.pick_types(meg=False, eeg=True, eog=False)
 
         print(raw.info)
