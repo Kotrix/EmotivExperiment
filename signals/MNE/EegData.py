@@ -5,7 +5,7 @@ class EegData:
     def __init__(self, file_path):
         self._eeg_data = self.read_from_csv(file_path)
         self._find_experiment_start_index()
-        self._create_responses()
+        self._create_stimuli()
 
     def read_from_csv(self, file_path):
         print('read file: ' + file_path)
@@ -54,8 +54,11 @@ class EegData:
         self.experiment_start_index = index
         self._eeg_data = self._eeg_data[self.experiment_start_index:]
 
-    def _create_responses(self):
-        self._responses = list()
+    def _create_stimuli(self):
+        self._stimuli = list()
+
+        face_min_id = 33024
+        face_max_id = 33048
 
         event_ids = self.get_by_column_names(['Event_Id'])[0]
         event_dates = self.get_by_column_names(['Event_Date'])[0]
@@ -66,10 +69,8 @@ class EegData:
             if event_id != '':
                 stimuli_id = int(event_id.split(':')[0])
                 event_timestamp = float(event_date.split(':')[0])
-                if stimuli_id == 770:
-                    self._responses.append((True, event_timestamp))
-                elif stimuli_id == 769:
-                    self._responses.append((False, event_timestamp))
+                if face_min_id <= stimuli_id <= face_max_id:
+                    self._stimuli.append((stimuli_id, event_timestamp))
 
-    def get_responses(self):
-        return self._responses
+    def get_stimuli(self):
+        return self._stimuli
