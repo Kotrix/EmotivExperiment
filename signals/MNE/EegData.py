@@ -68,9 +68,10 @@ class EegData:
 
             if event_id != '':
                 stimuli_id = int(event_id.split(':')[0])
-                event_timestamp = float(event_date.split(':')[0])
                 if face_min_id <= stimuli_id <= face_max_id:
-                    self._stimuli.append((stimuli_id, event_timestamp))
+                    self._stimuli.append([stimuli_id, True])
+                if stimuli_id == 769:
+                    self._stimuli[-1][1] = False
 
     def get_stimuli(self):
         return self._stimuli

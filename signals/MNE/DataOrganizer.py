@@ -35,7 +35,8 @@ class DataOrganizer:
     def _create_events(self):
         return EventsCreator().create(
             self._eeg_data.get_by_column_names(self._triggering_channel)[0],
-            self._eeg_data.get_stimuli())
+            self._eeg_data.get_stimuli(),
+            self._eeg_data.experiment_start_index)
 
     def _get_channels_to_analyze_indexes(self):
         return range(len(self._channels_to_analyze))

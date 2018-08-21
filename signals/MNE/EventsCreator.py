@@ -4,7 +4,7 @@ from Time import *
 
 class EventsCreator:
 
-    def create(self, raw_trigger_signal: np.ndarray, responses: list):
+    def create(self, raw_trigger_signal: np.ndarray, responses: list, offset: int):
         events_list = list()  # np.zeros((len(responses), 3))
 
         # Define threshold for trigger signal
@@ -15,12 +15,12 @@ class EventsCreator:
         trigger_threshold = self._count_treshold(raw_trigger_signal, len(responses))
 
         # Find next stimuli start and save related epoch for every electrode
-        i = Time.to_sample(responses[0][1])
+        i = 0
         trigger_iter = 0
         while i < len(trigger_signal):
             if raw_trigger_signal[i] < trigger_threshold:
                 try:
-                    was_response_correct = responses[trigger_iter][0]
+                    was_response_correct = responses[trigger_iter][1]
                 except:
                     i += 1
                     continue
@@ -37,7 +37,7 @@ class EventsCreator:
                         trigger_iter += 1
                         continue
 
-                    events_list.append([stimuli_index, 0, 1])
+                    events_list.append([offset + stimuli_index, 0, responses[trigger_iter][0]])
 
                 i += max_trigger_peak_width
                 trigger_iter += 1
