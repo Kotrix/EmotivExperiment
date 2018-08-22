@@ -1,6 +1,6 @@
 import numpy as np
 from Time import *
-
+from filtering import *
 
 class EventsCreator:
 
@@ -10,6 +10,7 @@ class EventsCreator:
         # Define threshold for trigger signal
         max_trigger_peak_width = Time.to_sample(2)  # in seconds
 
+        raw_trigger_signal = butter_bandpass_filter(raw_trigger_signal, [0.5, 10.], 128)
         trigger_signal = np.gradient(raw_trigger_signal)
 
         trigger_threshold = self._count_treshold(raw_trigger_signal, len(responses))
@@ -18,7 +19,7 @@ class EventsCreator:
         i = 0
         trigger_iter = 0
         while i < len(trigger_signal):
-            if raw_trigger_signal[i] < trigger_threshold:
+            if np.all(raw_trigger_signal[i:i+3] < trigger_threshold):
                 try:
                     was_response_correct = responses[trigger_iter][1]
                 except:
