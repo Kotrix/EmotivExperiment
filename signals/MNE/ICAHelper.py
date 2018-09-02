@@ -12,9 +12,6 @@ class ICAHelper:
     def infomax(self, epochs: mne.Epochs):
         return self._ica_algorithm(epochs=epochs, method='infomax')
 
-    def picard(self, epochs: mne.Epochs):
-        return self._ica_algorithm(epochs=epochs, method='picard')
-
     def _ica_algorithm(self, epochs: mne.Epochs, method):
         random_state = 0
         ica = ICA(n_components=0.95, method=method, random_state=random_state).fit(epochs)

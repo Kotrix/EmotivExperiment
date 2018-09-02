@@ -12,5 +12,7 @@ class PCAHelper:
         pca = UnsupervisedSpatialFilter(PCA(number_of_channels), average=True)
         pca_data = pca.fit_transform(epochs_data)
         return mne.EvokedArray(np.mean(pca_data, axis=0),
-                               epochs.info,
+                               mne.create_info(number_of_channels,
+                                               epochs.info['sfreq'],
+                                               ch_types='eeg'),
                                tmin=-0.1)
