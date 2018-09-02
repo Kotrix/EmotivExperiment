@@ -3,20 +3,21 @@ import mne
 
 
 class ICAHelper:
-    def fast_ica(self, raw: mne.io.Raw):
-        return self._ica_algorithm(raw=raw, method='fastica')
+    def fast_ica(self, epochs: mne.Epochs):
+        return self._ica_algorithm(epochs=epochs, method='fastica')
 
-    def extended_infomax(self, raw):
-        return self._ica_algorithm(raw=raw, method='extended-infomax')
+    def extended_infomax(self, epochs: mne.Epochs):
+        return self._ica_algorithm(epochs=epochs, method='extended-infomax')
 
-    def _ica_algorithm(self, raw: mne.io.Raw, method):
-        corrected_raw = raw.copy()
+    def infomax(self, epochs: mne.Epochs):
+        return self._ica_algorithm(epochs=epochs, method='infomax')
+
+    def picard(self, epochs: mne.Epochs):
+        return self._ica_algorithm(epochs=epochs, method='picard')
+
+    def _ica_algorithm(self, epochs: mne.Epochs, method):
         random_state = 0
-
-        ica = ICA(method=method, random_state=random_state)
-        print(ica)
-        ica.fit(corrected_raw)
-        print(ica)
-        ica.plot_components(inst=corrected_raw)
-        ica.apply(corrected_raw)
-        return corrected_raw
+        ica = ICA(n_components=0.95, method=method, random_state=random_state).fit(epochs)
+        # ica.plot_components(inst=epochs)
+        epochs = ica.apply(epochs, exclude=[2])
+        return epochs

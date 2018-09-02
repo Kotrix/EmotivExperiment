@@ -2,6 +2,7 @@ import numpy as np
 from Time import *
 from filtering import *
 
+
 class EventsCreator:
 
     def create(self, raw_trigger_signal: np.ndarray, responses: list, offset: int):
@@ -13,7 +14,7 @@ class EventsCreator:
         raw_trigger_signal = butter_bandpass_filter(raw_trigger_signal, [0.5, 10.], 128)
         trigger_signal = np.gradient(raw_trigger_signal)
 
-        trigger_threshold = self._count_treshold(raw_trigger_signal, len(responses))
+        trigger_threshold = self._count_threshold(raw_trigger_signal, len(responses))
 
         # Find next stimuli start and save related epoch for every electrode
         i = 0
@@ -58,7 +59,7 @@ class EventsCreator:
         events_list.sort(key=lambda x: x[0])
         return np.asarray(events_list)
 
-    def _count_treshold(self, raw_trigger_signal: np.ndarray, responses_length: int):
+    def _count_threshold(self, raw_trigger_signal: np.ndarray, responses_length: int):
         sorted_raw_trigger_signal = np.sort(raw_trigger_signal)
         begin_raw_trigger_signal_median = np.median(sorted_raw_trigger_signal[:responses_length])
 
