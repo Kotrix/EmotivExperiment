@@ -2,11 +2,12 @@ from data_utils import *
 import RWA as rwa
 import GW6 as gw6
 import scipy
+import matplotlib.pyplot as plt
 
 ############# CONFIG ###########################
 # person_id = 1
 for person_id in range(1,11):
-    database_regex = 'csv/'+ str(person_id if person_id > 0 else '*') + '/record-F*.csv'
+    database_regex = 'csv/'+ str(person_id if person_id > 0 else '*') + '/record-FGT*.csv'
     suffix = 'CLASSIC'
 
     triggering_electrode = 'F7'
@@ -76,7 +77,7 @@ for person_id in range(1,11):
         database = common_database
 
 
-    #plot_database(database, 1)
+    # plot_database(database, 1)
 
 
 
@@ -95,8 +96,12 @@ for person_id in range(1,11):
 
             if filter_on or electrode == triggering_electrode:
                 filtered_signal = butter_bandpass_filter(signal, [low_cutoff, temp_high], fs)
+                plt.plot(database[filename]['signals'][electrode])
+                plt.plot(filtered_signal)
+                plt.title(electrode)
+                plt.show()
                 database[filename]['signals'][electrode] = filtered_signal
-    #plot_database(database, 1)
+    # plot_database(database, 1)
 
 
     ############ CUT THE END OF SIGNAL TO REMOVE FILTERING ARTIFACTS ##################

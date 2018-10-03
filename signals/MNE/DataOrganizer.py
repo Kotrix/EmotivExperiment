@@ -1,6 +1,7 @@
 import mne
 from EegData import *
 from EventsCreator import *
+import Noise as noise
 
 
 class DataOrganizer:
@@ -25,8 +26,10 @@ class DataOrganizer:
         raw = mne.io.RawArray(self._eeg_data.get_by_column_names(self._all_channels_to_analyze), info, first_samp=self._eeg_data.experiment_start_index)
         raw.pick_types(meg=False, eeg=True, eog=False)
 
+        # raw._data = noise.add_speckle(raw.get_data())
+
         print(raw.info)
-        self._filter_raw(raw)
+        # self._filter_raw(raw)
         return raw
 
     def _filter_raw(self, raw: mne.io.Raw):
