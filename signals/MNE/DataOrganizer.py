@@ -15,7 +15,7 @@ class DataOrganizer:
     def __init__(self, file_path):
         self._triggering_channel = ['F7']
         self._channels_to_analyze = ['P7', 'O1', 'O2', 'P8']
-        self._bad_channels = ['AF3', 'FC5', 'T7', 'T8', 'FC6', 'F4', 'AF4']
+        self._bad_channels = ['AF3', 'F3', 'FC5', 'T7', 'T8', 'FC6', 'F4', 'AF4']
         self._all_channels_to_analyze = self._channels_to_analyze + self._bad_channels
         self._eeg_data = EegData(file_path)
 

@@ -1,6 +1,9 @@
 import Noise as noise
 from mne.viz import plot_evoked_topo
 import mne
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+import numpy as np
 
 
 def plot_joint_evokeds(evokeds: mne.Evoked, title):
@@ -12,7 +15,6 @@ def plot_joint_evokeds(evokeds: mne.Evoked, title):
         return
     ts_args = dict(time_unit='ms')
     evokeds.plot_joint(title=title, ts_args=ts_args)
-    # evokeds.plot_sensors(show_names=True)
 
 
 def plot_evokeds(evokeds: mne.Evoked, title):
@@ -29,4 +31,7 @@ def plot_compare_evokeds(evokeds: list, title):
     for evoked in evokeds:
         evoked.apply_baseline()
 
+    evokeds[0].plot_sensors(show_names=True)
     plot_evoked_topo(evokeds, color=colors[:len(evokeds)], title=title, background_color='w')
+
+
