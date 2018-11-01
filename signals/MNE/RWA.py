@@ -87,13 +87,13 @@ class RobustWeightedAveraging:
         if index == 0:
             return self._find_signal_with_minimal_distance_to_others(vector_data)
         elif index == 1:
-            return np.zeros((1, vector_data.shape[1]))
-        elif index == 2:
-            return np.ones((1, vector_data.shape[1]))*4200
-        elif index == 3:
-            return np.reshape(np.mean(vector_data, axis=0), (1, vector_data.shape[1]))
-        elif index == 4:
             return np.reshape(np.median(vector_data, axis=0), (1, vector_data.shape[1]))
+        elif index == 2:
+            return np.reshape(np.mean(vector_data, axis=0), (1, vector_data.shape[1]))
+        elif index == 3:
+            return np.ones((1, vector_data.shape[1]))*4200
+        elif index == 4:
+            return np.zeros((1, vector_data.shape[1]))
         else:
             return np.random.uniform(np.random.rand(1)*-10000, np.random.rand(1)*10000, (1, vector_data.shape[1]))
 
@@ -106,7 +106,8 @@ class RobustWeightedAveraging:
             for j in range(signals_amount):
                 signals_distances[i] += self._dist(data[i, :], data[j, :])
 
-        return data[np.argmin(signals_distances)]
+        first_min, second_min = signals_distances.argsort()[:2]
+        return np.mean(np.array([data[first_min], data[second_min]]), axis=0)
 
     def _dist(self, vec_a, vec_b):
         return np.sqrt(np.sum((vec_a-vec_b)**2))
