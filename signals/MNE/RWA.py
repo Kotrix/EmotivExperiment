@@ -30,18 +30,20 @@ class RobustWeightedAveraging:
             w_new = np.power(DD, 1 / (1 - exponent_param))  # update W
             weights = w_new / np.sum(w_new)
 
+            if i > 0 and np.std(weights - weights_old) <= epsilon:
+                print('No of iteration: {}'.format(i + 1))
+                break
+
             weights_exp = np.power(weights, exponent_param)
             averaged_signal = weights_exp.dot(channel_data) / np.sum(weights_exp)
-            if i > 0:
-                if np.std(weights - weights_old) < epsilon:
-                    break
+        # else:
+        #     # in case of not reaching the epsilon
+        #     return np.zeros(channel_data.shape[1])
 
-        print('No of iteration: {}'.format(i + 1))
-        vec = weights.dot(channel_data) / sum(weights)
-        if (i + 1 >= iter):
-            return np.zeros(channel_data.shape[1]) # np.ones(channel_data.shape[1])*4200 #self._quadratic_for_one_channel(channel_data, signal_length, number_of_epochs) #
-        else:
-            return vec
+        # Modified WACFM
+        averaged_signal = weights.dot(channel_data) / sum(weights)
+
+        return averaged_signal
 
     def absolute(self, data: np.ndarray, input_signal_index):
         # [V,W] = AVE1(data,V,Vt)
